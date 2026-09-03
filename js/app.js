@@ -95,8 +95,12 @@ window.addEventListener('qtd:logout', () => { closeAllModals(); S.logout(); loca
 
 window.addEventListener('DOMContentLoaded', async () => {
   root = document.getElementById('root');
+  // Vẽ ngay bằng dữ liệu cache cũ (localStorage, không chờ mạng) cho đỡ phải
+  // nhìn "Đang tải ứng dụng..." lâu — S.refresh() ở dưới tải dữ liệu mới nhất
+  // ở nền, xong tự notify() để vẽ lại (xem S.subscribe bên dưới).
   await S.init();
   renderApp();
+  S.refresh();
 });
 
 // Mọi thay đổi dữ liệu (xóa/tạo/sửa...) đều gọi notify() và kích hoạt render

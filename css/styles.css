@@ -400,6 +400,7 @@ svg { display: block; }
   max-height: 88vh;
   border-radius: 18px 18px 0 0;
   display: flex; flex-direction: column;
+  overflow: hidden; /* để modal-body cuộn RIÊNG bên trong, không đẩy head/foot ra ngoài khung */
   animation: slideUp .18s ease;
 }
 @media (min-width: 640px) {
@@ -408,10 +409,13 @@ svg { display: block; }
 .modal-head {
   display: flex; align-items: center; justify-content: space-between;
   padding: 16px; border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
 }
 .modal-head h3 { font-size: 16px; font-weight: 700; }
-.modal-body { padding: 16px; overflow-y: auto; }
-.modal-foot { padding: 14px 16px; border-top: 1px solid var(--border); display: flex; gap: 10px; }
+/* min-height:0 bắt buộc phải có để overflow-y:auto thật sự cuộn bên trong flex column — thiếu dòng
+   này, nội dung dài (VD sổ nợ nhiều dòng) sẽ đẩy tràn cả modal-foot ra khỏi màn hình, mất nút cuối. */
+.modal-body { padding: 16px; overflow-y: auto; flex: 1 1 auto; min-height: 0; }
+.modal-foot { padding: 14px 16px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px; flex-shrink: 0; }
 @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
 @keyframes slideUp { from { transform: translateY(24px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
 

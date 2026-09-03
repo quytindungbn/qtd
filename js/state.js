@@ -47,6 +47,9 @@ function emptyState() {
   };
 }
 
+/** Chỉ đọc cache trong localStorage — KHÔNG đụng mạng, xong ngay lập tức. Gọi hàm này rồi vẽ màn
+ * hình ra liền (dùng dữ liệu cũ tạm, khỏi phải nhìn "Đang tải..." lâu), sau đó gọi refresh() ở nền
+ * để lấy dữ liệu mới nhất — refresh() xong sẽ tự notify() để vẽ lại với dữ liệu thật. */
 export async function init() {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (raw) {
@@ -54,17 +57,17 @@ export async function init() {
   } else {
     state = emptyState();
   }
-  // Tên sổ là DUY NHẤT thứ cần hiện ra TRƯỚC khi đăng nhập (màn đăng nhập
-  // hiện tên sổ) — tải thẳng từ Supabase ngay lúc khởi động app. Bảng
-  // app_settings cho phép SELECT công khai, chỉ cần anon key.
+}
+/** Tải dữ liệu mới nhất từ Supabase ở NỀN (không chặn màn hình đầu tiên) — tên sổ (cho màn đăng
+ * nhập) + toàn bộ dữ liệu phiên đang đăng nhập (nếu có). Xong tự notify() để vẽ lại. */
+export async function refresh() {
   await loadSettingsPublic();
-  // Có sẵn phiên đăng nhập từ lần trước (localStorage) -> tải lại dữ liệu
-  // mới nhất từ Supabase ngay (cache cũ chỉ để vẽ tạm cho khỏi trắng trang).
   if (state.session?.sbToken) {
     try { await loadSessionData(state.session.sbToken); }
     catch (e) { console.warn('Không tải lại được dữ liệu phiên cũ.', e); }
   }
   persist();
+  notify();
 }
 
 async function loadSettingsPublic() {
