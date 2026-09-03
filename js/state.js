@@ -609,6 +609,16 @@ export function listCreditors(filters = {}) {
   return list.sort((a, b) => b.lastDate.localeCompare(a.lastDate) || a.name.localeCompare(b.name));
 }
 export function getCreditor(id) { return state.creditors.find((c) => c.id === id); }
+/** Toàn bộ TÊN chủ nợ đã dùng qua, không trùng (kể cả đã "đã trả hết") — để gợi ý lúc ghi nợ mới, hoạt động gần nhất trước. */
+export function listCreditorNames() {
+  const seen = new Set();
+  const names = [];
+  listCreditors().forEach((c) => {
+    const key = c.name.trim().toLowerCase();
+    if (!seen.has(key)) { seen.add(key); names.push(c.name); }
+  });
+  return names;
+}
 /** Sổ nợ của 1 chủ nợ (ghi nợ + trả nợ), mới nhất trước. */
 export function listDebtEntries(creditorId) {
   return entriesOf(creditorId).sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));

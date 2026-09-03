@@ -264,27 +264,40 @@ function openPayModal(c, balance) {
   });
 }
 
+/** Gợi ý tên chủ nợ đã dùng qua (kể cả đã "đã trả hết" — vẫn giữ tên để chọn lại lần sau), chỉ hiện
+ * TÊN cho gọn, không hiện số tiền. Gõ tên mới hoàn toàn thì cứ gõ, không cần chọn gì. */
+function bindCreditorNameSuggestions(sheet, inputId, listId) {
+  const input = sheet.querySelector(`#${inputId}`);
+  const list = sheet.querySelector(`#${listId}`);
+  const allNames = S.listCreditorNames();
+  function render() {
+    const q = input.value.trim().toLowerCase();
+    const matches = q ? allNames.filter((n) => n.toLowerCase().includes(q) && n.toLowerCase() !== q) : allNames;
+    if (!matches.length) { list.style.display = 'none'; list.innerHTML = ''; return; }
+    list.innerHTML = matches.map((n) => `<div data-name="${n.replace(/"/g, '&quot;')}" style="padding:8px 12px;cursor:pointer;font-size:14px;border-bottom:1px solid var(--border)">${n}</div>`).join('');
+    list.style.display = '';
+  }
+  input.addEventListener('focus', render);
+  input.addEventListener('input', render);
+  input.addEventListener('blur', () => setTimeout(() => { list.style.display = 'none'; }, 150));
+  list.addEventListener('mousedown', (e) => e.preventDefault());
+  list.addEventListener('click', (e) => {
+    const item = e.target.closest('[data-name]');
+    if (!item) return;
+    input.value = item.dataset.name;
+    list.style.display = 'none';
+  });
+}
+
 function openChargeForm({ creditorId, creditorName } = {}) {
   const locked = !!creditorId;
-  // Chỉ cho CHỌN LẠI chủ nợ đang còn nợ (tab "Đang nợ") — chọn 1 người trong danh sách này là ghi
-  // tiếp vào đúng sổ đang mở của họ. Muốn ghi nợ cho người đã "đã trả hết" (hoặc người mới hoàn
-  // toàn) thì gõ tên ở ô "Chủ nợ mới": trùng tên người đã trả hết sẽ tự mở 1 sổ nợ MỚI, không chồng
-  // vào sổ cũ.
-  const activeCreditors = locked ? [] : S.listCreditors({ status: 'active' });
   openModal({
     title: 'Ghi nợ mới',
     bodyHtml: `
-      <div class="field">
+      <div class="field" style="position:relative">
         <label>Chủ nợ</label>
-        ${locked
-          ? `<input id="charge-creditor-name" value="${creditorName.replace(/"/g, '&quot;')}" readonly/>`
-          : `
-            <select id="charge-creditor-select">
-              <option value="">+ Chủ nợ mới (gõ tên)</option>
-              ${activeCreditors.map((c) => `<option value="${c.id}">${c.name.replace(/"/g, '&quot;')} — đang nợ ${formatVND(c.balance)}</option>`).join('')}
-            </select>
-            <input id="charge-creditor-name" placeholder="VD: Tạp hóa A" style="margin-top:8px" autocomplete="off"/>
-          `}
+        <input id="charge-creditor-name" value="${locked ? creditorName.replace(/"/g, '&quot;') : ''}" placeholder="VD: Tạp hóa A" ${locked ? 'readonly' : ''} autocomplete="off"/>
+        ${locked ? '' : `<div id="charge-creditor-list" style="display:none;position:absolute;left:0;right:0;z-index:5;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-top:4px;max-height:160px;overflow-y:auto"></div>`}
       </div>
       <div class="field"><label>Ngày mua nợ</label><input id="charge-date" type="date" value="${new Date().toISOString().slice(0, 10)}" required/></div>
       <div class="field"><label>Mua gì (không bắt buộc)</label><input id="charge-desc" placeholder="VD: gạo, mắm, dầu ăn"/></div>
@@ -296,27 +309,18 @@ function openChargeForm({ creditorId, creditorName } = {}) {
     onMount(sheet, closeFn) {
       attachMoneyInput(sheet.querySelector('#charge-amount'));
       bindAddToTxnToggle(sheet, 'charge');
-      const selectEl = sheet.querySelector('#charge-creditor-select');
-      const nameEl = sheet.querySelector('#charge-creditor-name');
-      if (selectEl) {
-        selectEl.addEventListener('change', () => {
-          const picked = !!selectEl.value;
-          nameEl.style.display = picked ? 'none' : '';
-          if (picked) nameEl.value = '';
-        });
-      }
+      if (!locked) bindCreditorNameSuggestions(sheet, 'charge-creditor-name', 'charge-creditor-list');
       sheet.querySelector('[data-save]').addEventListener('click', async () => {
-        const pickedCreditorId = locked ? creditorId : (selectEl ? selectEl.value : '');
-        const creditorNameVal = locked ? creditorName : nameEl.value.trim();
+        const creditorNameVal = locked ? creditorName : sheet.querySelector('#charge-creditor-name').value.trim();
         const date = sheet.querySelector('#charge-date').value;
         const description = sheet.querySelector('#charge-desc').value.trim();
         const amount = unformatMoney(sheet.querySelector('#charge-amount').value);
         const addToTransactions = sheet.querySelector('#charge-add-txn').checked;
         const categoryId = sheet.querySelector('#charge-cat').value;
         const errEl = sheet.querySelector('#charge-error');
-        if (!pickedCreditorId && !creditorNameVal) { errEl.textContent = 'Cần chọn hoặc nhập tên chủ nợ.'; errEl.style.display = 'block'; return; }
+        if (!creditorNameVal) { errEl.textContent = 'Cần nhập tên chủ nợ.'; errEl.style.display = 'block'; return; }
         try {
-          await S.addDebtCharge({ creditorId: pickedCreditorId || undefined, creditorName: pickedCreditorId ? undefined : creditorNameVal, amount, date, description, categoryId, addToTransactions });
+          await S.addDebtCharge({ creditorId: locked ? creditorId : undefined, creditorName: locked ? undefined : creditorNameVal, amount, date, description, categoryId, addToTransactions });
           toast('Đã ghi nợ', 'success');
           closeFn();
           if (locked) openCreditorDetail(creditorId);
