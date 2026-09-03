@@ -111,7 +111,6 @@ function renderCategoryTab(body) {
   const income = S.listCategories({ type: 'income' });
   body.innerHTML = `
     <div class="mb-16"><button class="btn btn-primary btn-block" id="btn-add-cat">${icon('plus', 'icon-sm')} Thêm danh mục</button></div>
-    <p class="text-sm text-faint mb-8">Bấm ${icon('chevronUp', 'icon-sm')}/${icon('chevronDown', 'icon-sm')} để đổi thứ tự hiển thị.</p>
     <div class="section-head"><h2>Khoản chi</h2></div>
     ${expense.length ? `<div class="card mb-16">${expense.map((c, i) => categoryRowHtml(c, i === 0, i === expense.length - 1)).join('')}</div>` : `<p class="text-sm text-muted mb-16">Chưa có danh mục chi nào.</p>`}
     <div class="section-head"><h2>Khoản thu</h2></div>
