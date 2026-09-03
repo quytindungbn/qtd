@@ -17,7 +17,7 @@ export const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 // URL thật của Edge Function DUY NHẤT (gộp login + tự đổi mật khẩu + quản lý
 // thành viên vào chung 1 function cho đỡ phải deploy nhiều chỗ) — LƯU Ý tên
 // hiển thị trên Dashboard có thể khác đường dẫn thật tùy cách tạo function.
-export const API_FN_URL = 'https://REPLACE-ME.supabase.co/functions/v1/REPLACE-ME';
+export const API_FN_URL = 'https://iswfooouxpzcijynvalv.supabase.co/functions/v1/create-account';
 
 /**
  * Tạo 1 Supabase client — nếu có JWT riêng (do Edge Function cấp sau khi
