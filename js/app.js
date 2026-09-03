@@ -18,7 +18,7 @@ import * as ChangePasswordSelf from './views/changePasswordSelf.js';
 const ROUTES = [
   { re: /^#\/$/, view: Dashboard },
   { re: /^#\/giao-dich$/, view: Transactions },
-  { re: /^#\/ngan-sach$/, view: Budgets },
+  { re: /^#\/danh-muc$/, view: Budgets },
   { re: /^#\/bao-cao$/, view: Reports },
   { re: /^#\/dinh-ky$/, view: Recurring },
   { re: /^#\/ke-hoach$/, view: Plans },

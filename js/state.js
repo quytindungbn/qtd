@@ -395,35 +395,6 @@ export function budgetOverviewForMonth(year, month) {
     return { category: cat, limit, spent, percent: limit ? Math.round((spent / limit) * 100) : null, over: limit != null && spent > limit };
   });
 }
-export async function setBudget(year, month, categoryId, amount) {
-  const session = getSession();
-  const sb = getSupabaseClient(session?.sbToken);
-  const existing = state.budgets.find((b) => b.categoryId === categoryId && b.year === year && b.month === month);
-  if (amount == null || amount === '') {
-    // Bỏ trống -> xóa override, quay về dùng hạn mức mặc định của danh mục (nếu có).
-    if (existing) {
-      const { error } = await sb.from('budgets').delete().eq('id', existing.id);
-      if (error) throw new Error('Không xóa được ngân sách, thử lại sau.');
-      state.budgets = state.budgets.filter((b) => b.id !== existing.id);
-      notify();
-    }
-    return;
-  }
-  const row = { id: existing ? existing.id : genId('bud'), year, month, category_id: categoryId, amount: Number(amount) };
-  const { error } = await sb.from('budgets').upsert(row, { onConflict: 'id' });
-  if (error) throw new Error('Không lưu được ngân sách, thử lại sau.');
-  const mapped = mapBudgetRow(row);
-  const idx = state.budgets.findIndex((b) => b.id === mapped.id);
-  if (idx >= 0) state.budgets[idx] = mapped; else state.budgets.push(mapped);
-  notify();
-}
-/** Sao chép toàn bộ hạn mức đã đặt riêng ở tháng trước sang tháng đang chọn (đỡ phải gõ lại từ đầu mỗi tháng). */
-export async function copyBudgetsFromPreviousMonth(year, month) {
-  const prev = month === 1 ? { year: year - 1, month: 12 } : { year, month: month - 1 };
-  const prevBudgets = state.budgets.filter((b) => b.year === prev.year && b.month === prev.month);
-  for (const b of prevBudgets) await setBudget(year, month, b.categoryId, b.amount);
-  return prevBudgets.length;
-}
 
 // ------------------------------------------------------------
 // Giao dịch định kỳ (tiền điện, lương, thuê nhà...) — tự nhắc, không tự ý ghi sổ

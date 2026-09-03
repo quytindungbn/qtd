@@ -59,7 +59,7 @@ export function openTransactionForm({ transaction, defaultType = 'expense', onSa
 
       if (!S.listCategories({ type }).length) {
         sheet.querySelector('#txn-error').style.display = 'block';
-        sheet.querySelector('#txn-error').textContent = 'Chưa có danh mục nào — tạo danh mục trước ở trang Ngân sách.';
+        sheet.querySelector('#txn-error').textContent = 'Chưa có danh mục nào — tạo danh mục trước ở trang Danh mục.';
       }
 
       form.addEventListener('submit', async (e) => {

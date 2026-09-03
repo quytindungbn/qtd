@@ -1,16 +1,16 @@
 import { icon } from '../icons.js';
 import { openModal } from './modal.js';
 
-// Thứ tự ở đây quyết định luôn 3 mục đầu hiện TRỰC TIẾP trên thanh menu dưới
+// Thứ tự ở đây quyết định luôn 4 mục đầu hiện TRỰC TIẾP trên thanh menu dưới
 // di động (BOTTOM_NAV_MAX_DIRECT bên dưới) — mục nào muốn dễ thấy, xếp
-// trong 3 mục đầu; còn lại tự động gộp vào "Thêm".
+// trong 4 mục đầu; còn lại tự động gộp vào "Thêm".
 export const NAV = [
   { path: '#/', label: 'Tổng quan', shortLabel: 'Tổng quan', icon: 'chart' },
   { path: '#/giao-dich', label: 'Giao dịch', shortLabel: 'Giao dịch', icon: 'wallet' },
   { path: '#/bao-cao', label: 'Báo cáo', shortLabel: 'Báo cáo', icon: 'trendingUp' },
-  { path: '#/ngan-sach', label: 'Ngân sách', shortLabel: 'Ngân sách', icon: 'tag' },
+  { path: '#/ke-hoach', label: 'Kế hoạch', shortLabel: 'Kế hoạch', icon: 'calendar' },
+  { path: '#/danh-muc', label: 'Danh mục', shortLabel: 'Danh mục', icon: 'tag' },
   { path: '#/dinh-ky', label: 'Định kỳ', shortLabel: 'Định kỳ', icon: 'refresh' },
-  { path: '#/ke-hoach', label: 'Kế hoạch chi tiêu', shortLabel: 'Kế hoạch', icon: 'calendar' },
   { path: '#/tiet-kiem', label: 'Tiết kiệm', shortLabel: 'Tiết kiệm', icon: 'target' },
 ];
 export const NAV_OWNER_ONLY = [
@@ -19,7 +19,7 @@ export const NAV_OWNER_ONLY = [
 ];
 // Số mục tối đa hiện trực tiếp trên thanh menu dưới (mobile) — còn lại gộp vào "Thêm"
 // để không bị lệch/chồng chữ khi có nhiều mục.
-const BOTTOM_NAV_MAX_DIRECT = 3;
+const BOTTOM_NAV_MAX_DIRECT = 4;
 
 function matchPath(navPath, current) {
   if (navPath === '#/') return current === '#/' || current === '' || current === '#';
