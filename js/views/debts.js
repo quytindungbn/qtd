@@ -6,6 +6,10 @@ import { emptyState } from '../components/ui.js';
 import { toast } from '../components/toast.js';
 import { formatVND, formatDate, formatNumber, attachMoneyInput, unformatMoney } from '../utils.js';
 
+// Quản lý nợ theo TỪNG CHỦ NỢ (vd "Tạp hóa A") — mỗi chủ nợ 1 sổ riêng gồm
+// nhiều dòng "ghi nợ" (mua gì, ngày nào, nợ bao nhiêu) và "trả nợ" (ngày
+// nào, trả bao nhiêu). Riêng tư của người đang đăng nhập, không hiện ở
+// Tổng quan (xem state.js).
 let tab = 'active';
 
 export function renderHeader(headerEl) {
@@ -13,96 +17,137 @@ export function renderHeader(headerEl) {
 }
 
 export function render(contentEl) {
-  const summary = S.debtsSummary();
+  const total = S.totalDebtRemaining();
   contentEl.innerHTML = `
     <div class="card card-pad mb-16">
-      <div class="oc-line"><span>Tổng nợ gốc</span><b>${formatVND(summary.totalOriginal)}</b></div>
-      <div class="oc-line"><span>Còn phải trả</span><b style="color:var(--danger)">${formatVND(summary.totalRemaining)}</b></div>
+      <div class="oc-line"><span>Tổng còn nợ</span><b style="color:var(--danger)">${formatVND(total)}</b></div>
     </div>
-    <div class="mb-16"><button class="btn btn-primary btn-block" id="btn-add">${icon('plus', 'icon-sm')} Thêm khoản nợ</button></div>
+    <div class="mb-16"><button class="btn btn-primary btn-block" id="btn-add">${icon('plus', 'icon-sm')} Ghi nợ mới</button></div>
     <div class="tabs mb-16">
       <button data-tab="active" class="${tab === 'active' ? 'active' : ''}">Đang nợ</button>
-      <button data-tab="paid" class="${tab === 'paid' ? 'active' : ''}">Đã trả xong</button>
+      <button data-tab="paid" class="${tab === 'paid' ? 'active' : ''}">Đã trả hết</button>
     </div>
-    <div id="debt-list"></div>
+    <div id="creditor-list"></div>
   `;
-  contentEl.querySelector('#btn-add').addEventListener('click', () => openDebtForm());
+  contentEl.querySelector('#btn-add').addEventListener('click', () => openChargeForm());
   contentEl.querySelectorAll('[data-tab]').forEach((btn) => {
     btn.addEventListener('click', () => { tab = btn.dataset.tab; render(contentEl); });
   });
-  renderList(contentEl.querySelector('#debt-list'));
+  renderList(contentEl.querySelector('#creditor-list'));
 }
 
 function renderList(listEl) {
-  const debts = S.listDebts({ status: tab });
-  listEl.innerHTML = debts.length
-    ? debts.map((d) => debtCardHtml(d)).join('')
+  const creditors = S.listCreditors({ status: tab });
+  listEl.innerHTML = creditors.length
+    ? creditors.map((c) => creditorCardHtml(c)).join('')
     : `<div class="card card-pad">${emptyState({
         iconName: 'creditCard',
-        title: tab === 'active' ? 'Chưa có khoản nợ nào' : 'Chưa có khoản nợ nào trả xong',
-        message: tab === 'active' ? 'Thêm khoản nợ mua trả góp, vay mượn... để theo dõi dư nợ.' : 'Khoản nợ trả hết sẽ chuyển sang đây.',
+        title: tab === 'active' ? 'Chưa có khoản nợ nào' : 'Chưa có chủ nợ nào trả hết',
+        message: tab === 'active' ? 'Bấm "Ghi nợ mới" để ghi lại khoản mua/vay nợ theo từng chủ nợ.' : 'Chủ nợ trả hết nợ sẽ chuyển sang đây.',
       })}</div>`;
-  listEl.querySelectorAll('[data-debt]').forEach((row) => {
-    row.addEventListener('click', () => openDebtDetail(S.getDebt(row.dataset.debt)));
+  listEl.querySelectorAll('[data-creditor]').forEach((row) => {
+    row.addEventListener('click', () => openCreditorDetail(row.dataset.creditor));
   });
 }
 
-function debtCardHtml(d) {
-  const pct = d.totalAmount ? Math.min(100, Math.round(((d.totalAmount - d.remainingAmount) / d.totalAmount) * 100)) : 0;
+function creditorCardHtml(c) {
   return `
-    <div class="card card-pad mb-16" data-debt="${d.id}" style="cursor:pointer">
-      <div class="flex items-center justify-between mb-8">
+    <div class="card card-pad mb-16" data-creditor="${c.id}" style="cursor:pointer">
+      <div class="flex items-center justify-between">
         <div class="flex items-center gap-8">
           <div class="cat-icon" style="background:var(--color-primary)">${icon('creditCard', 'icon-sm')}</div>
           <div>
-            <b>${d.name}</b>
-            ${d.creditor ? `<div class="text-sm text-muted">${d.creditor}</div>` : ''}
+            <b>${c.name}</b>
+            ${c.lastDate ? `<div class="text-sm text-muted">Gần nhất: ${formatDate(c.lastDate)}</div>` : ''}
           </div>
         </div>
-        ${icon('chevronRight', 'icon-sm')}
+        <div style="text-align:right">
+          <div class="fw-700" style="color:${c.balance > 0 ? 'var(--danger)' : 'var(--success)'}">${formatVND(c.balance)}</div>
+          <div class="text-sm text-muted">${c.balance > 0 ? 'còn nợ' : 'đã hết nợ'}</div>
+        </div>
       </div>
-      <div class="flex items-center justify-between mb-4">
-        <span class="text-sm text-muted">Còn lại ${formatVND(d.remainingAmount)} / ${formatVND(d.totalAmount)}</span>
-        <span class="text-sm fw-700">${pct}%</span>
-      </div>
-      <div class="progress-bar mb-8"><div class="progress-fill" style="width:${pct}%"></div></div>
     </div>`;
 }
 
-function openDebtDetail(d) {
-  if (!d) return;
-  const payments = S.listDebtPayments(d.id);
+function openCreditorDetail(creditorId) {
+  const c = S.getCreditor(creditorId);
+  if (!c) return;
+  const balance = S.creditorBalance(c.id);
+  const entries = S.listDebtEntries(c.id);
   openModal({
-    title: d.name,
+    title: c.name,
     bodyHtml: `
-      ${d.creditor ? `<div class="oc-line"><span>Vay/mua của</span><b>${d.creditor}</b></div>` : ''}
-      <div class="oc-line"><span>Tổng nợ gốc</span><b>${formatVND(d.totalAmount)}</b></div>
-      <div class="oc-line"><span>Còn phải trả</span><b style="color:var(--danger)">${formatVND(d.remainingAmount)}</b></div>
-      <div class="oc-line"><span>Ngày vay/mua</span><b>${formatDate(d.startDate)}</b></div>
-      ${d.note ? `<div class="oc-line"><span>Ghi chú</span><b>${d.note}</b></div>` : ''}
-      ${payments.length ? `
-        <div class="fw-700 text-sm mt-16 mb-8">Lịch sử trả nợ</div>
-        ${payments.map((p) => `<div class="oc-line"><span>${formatDate(p.paymentDate)}</span><b>${formatVND(p.amount)}</b></div>`).join('')}
-      ` : ''}
+      <div class="oc-line mb-16"><span>Còn nợ</span><b style="color:${balance > 0 ? 'var(--danger)' : 'var(--success)'}">${formatVND(balance)}</b></div>
+      ${entries.length ? `
+        <div class="fw-700 text-sm mb-8">Sổ nợ</div>
+        ${entries.map((e) => entryRowHtml(e)).join('')}
+      ` : `<p class="text-sm text-muted">Chưa có dòng nào trong sổ nợ.</p>`}
     `,
-    footHtml: d.status === 'active' ? `
-      <button class="btn btn-primary btn-block" data-pay>${icon('check', 'icon-sm')} Trả nợ</button>
-      <button class="btn btn-outline btn-block" data-edit style="margin-top:8px">${icon('edit', 'icon-sm')} Sửa</button>
-      <button class="btn btn-danger-outline btn-block" data-del style="margin-top:8px">${icon('trash', 'icon-sm')} Xóa</button>
-    ` : `
-      <button class="btn btn-danger-outline btn-block" data-del>${icon('trash', 'icon-sm')} Xóa khoản nợ (không xóa giao dịch đã ghi)</button>
+    footHtml: `
+      <button class="btn btn-primary btn-block" data-charge>${icon('plus', 'icon-sm')} Ghi nợ thêm</button>
+      <button class="btn btn-outline btn-block" data-pay style="margin-top:8px">${icon('check', 'icon-sm')} Trả nợ</button>
+      <button class="btn btn-outline btn-block" data-rename style="margin-top:8px">${icon('edit', 'icon-sm')} Đổi tên chủ nợ</button>
+      <button class="btn btn-danger-outline btn-block" data-del style="margin-top:8px">${icon('trash', 'icon-sm')} Xóa chủ nợ này</button>
     `,
     onMount(sheet, closeFn) {
-      const payBtn = sheet.querySelector('[data-pay]');
-      if (payBtn) payBtn.addEventListener('click', () => { closeFn(); openPayModal(d); });
-      const editBtn = sheet.querySelector('[data-edit]');
-      if (editBtn) editBtn.addEventListener('click', () => { closeFn(); openDebtForm(d); });
+      sheet.querySelector('[data-charge]').addEventListener('click', () => { closeFn(); openChargeForm({ creditorId: c.id, creditorName: c.name }); });
+      sheet.querySelector('[data-pay]').addEventListener('click', () => { closeFn(); openPayModal(c, balance); });
+      sheet.querySelector('[data-rename]').addEventListener('click', () => { closeFn(); openRenameModal(c); });
       sheet.querySelector('[data-del]').addEventListener('click', () => {
         closeFn();
         confirmDialog({
-          title: 'Xóa khoản nợ?', message: 'Không thể hoàn tác. Các giao dịch đã ghi khi trả nợ trước đó vẫn được giữ nguyên.', confirmLabel: 'Xóa', danger: true,
+          title: 'Xóa chủ nợ này?', message: `Xóa toàn bộ sổ nợ của "${c.name}". Các giao dịch chi tiêu đã ghi khi trả nợ trước đó vẫn được giữ nguyên. Không thể hoàn tác.`, confirmLabel: 'Xóa', danger: true,
           onConfirm: async () => {
-            try { await S.deleteDebt(d.id); toast('Đã xóa khoản nợ', 'success'); }
+            try { await S.deleteCreditor(c.id); toast('Đã xóa chủ nợ', 'success'); }
+            catch (err) { toast(err.message || 'Có lỗi xảy ra', 'error'); }
+          },
+        });
+      });
+      sheet.querySelectorAll('[data-entry]').forEach((row) => {
+        row.addEventListener('click', () => { closeFn(); openEntryActions(entries.find((e) => e.id === row.dataset.entry), c); });
+      });
+    },
+  });
+}
+
+function entryRowHtml(e) {
+  const isCharge = e.kind === 'charge';
+  return `
+    <div class="list-row" data-entry="${e.id}" style="cursor:pointer">
+      <div class="row-thumb" style="background:${isCharge ? 'var(--danger)' : 'var(--success)'}">${icon(isCharge ? 'cart' : 'check', 'icon-sm')}</div>
+      <div class="row-main">
+        <div class="row-title">${isCharge ? (e.description || 'Ghi nợ') : (e.description || 'Trả nợ')}</div>
+        <div class="row-sub">${formatDate(e.date)}</div>
+      </div>
+      <div class="row-end"><span class="amount" style="color:${isCharge ? 'var(--danger)' : 'var(--success)'}">${isCharge ? '+' : '-'}${formatVND(e.amount)}</span></div>
+    </div>`;
+}
+
+function openEntryActions(e, c) {
+  if (!e) return;
+  const isCharge = e.kind === 'charge';
+  openModal({
+    title: isCharge ? 'Dòng ghi nợ' : 'Dòng trả nợ',
+    bodyHtml: `
+      <div class="oc-line"><span>Ngày</span><b>${formatDate(e.date)}</b></div>
+      ${e.description ? `<div class="oc-line"><span>${isCharge ? 'Mua gì' : 'Ghi chú'}</span><b>${e.description}</b></div>` : ''}
+      <div class="oc-line"><span>Số tiền</span><b>${formatVND(e.amount)}</b></div>
+      ${!isCharge ? `<p class="text-sm text-muted mt-16">Đây là dòng trả nợ, có kèm 1 giao dịch chi tiêu thật. Sửa/xóa dòng này sẽ đồng bộ luôn giao dịch đó.</p>` : ''}
+    `,
+    footHtml: `
+      <button class="btn btn-outline btn-block" data-edit>${icon('edit', 'icon-sm')} Sửa</button>
+      <button class="btn btn-danger-outline btn-block" data-del style="margin-top:8px">${icon('trash', 'icon-sm')} Xóa</button>
+    `,
+    onMount(sheet, closeFn) {
+      sheet.querySelector('[data-edit]').addEventListener('click', () => { closeFn(); openEditEntryForm(e, c); });
+      sheet.querySelector('[data-del]').addEventListener('click', () => {
+        closeFn();
+        confirmDialog({
+          title: 'Xóa dòng này?',
+          message: isCharge ? 'Không thể hoàn tác.' : 'Giao dịch chi tiêu thật đã tạo kèm dòng trả nợ này cũng sẽ bị xóa. Không thể hoàn tác.',
+          confirmLabel: 'Xóa', danger: true,
+          onConfirm: async () => {
+            try { await S.deleteDebtEntry(e.id); toast('Đã xóa', 'success'); openCreditorDetail(c.id); }
             catch (err) { toast(err.message || 'Có lỗi xảy ra', 'error'); }
           },
         });
@@ -111,16 +156,69 @@ function openDebtDetail(d) {
   });
 }
 
-function openPayModal(d) {
-  const suggested = d.remainingAmount;
+function openEditEntryForm(e, c) {
+  const isCharge = e.kind === 'charge';
+  openModal({
+    title: isCharge ? 'Sửa ghi nợ' : 'Sửa trả nợ',
+    bodyHtml: `
+      <div class="field"><label>Ngày</label><input id="entry-date" type="date" value="${e.date}" required/></div>
+      <div class="field"><label>${isCharge ? 'Mua gì' : 'Ghi chú (không bắt buộc)'}</label><input id="entry-desc" value="${(e.description || '').replace(/"/g, '&quot;')}"/></div>
+      <div class="field"><label>Số tiền</label><input id="entry-amount" type="text" inputmode="numeric" value="${formatNumber(e.amount)}" required/></div>
+      <div class="field-error" id="entry-error" style="display:none;margin-bottom:10px"></div>
+    `,
+    footHtml: `<button class="btn btn-primary btn-block" data-save>Lưu thay đổi</button>`,
+    onMount(sheet, closeFn) {
+      attachMoneyInput(sheet.querySelector('#entry-amount'));
+      sheet.querySelector('[data-save]').addEventListener('click', async () => {
+        const date = sheet.querySelector('#entry-date').value;
+        const description = sheet.querySelector('#entry-desc').value.trim();
+        const amount = unformatMoney(sheet.querySelector('#entry-amount').value);
+        const errEl = sheet.querySelector('#entry-error');
+        try {
+          await S.updateDebtEntry(e.id, { amount, date, description });
+          toast('Đã lưu', 'success');
+          closeFn();
+          openCreditorDetail(c.id);
+        } catch (err) { errEl.textContent = err.message || 'Có lỗi xảy ra'; errEl.style.display = 'block'; }
+      });
+    },
+  });
+}
+
+function openRenameModal(c) {
+  openModal({
+    title: 'Đổi tên chủ nợ',
+    bodyHtml: `
+      <div class="field"><label>Tên chủ nợ</label><input id="creditor-name" value="${c.name.replace(/"/g, '&quot;')}" required/></div>
+      <div class="field"><label>Ghi chú (không bắt buộc)</label><input id="creditor-note" value="${(c.note || '').replace(/"/g, '&quot;')}"/></div>
+      <div class="field-error" id="creditor-error" style="display:none;margin-bottom:10px"></div>
+    `,
+    footHtml: `<button class="btn btn-primary btn-block" data-save>Lưu thay đổi</button>`,
+    onMount(sheet, closeFn) {
+      sheet.querySelector('[data-save]').addEventListener('click', async () => {
+        const name = sheet.querySelector('#creditor-name').value.trim();
+        const note = sheet.querySelector('#creditor-note').value.trim();
+        const errEl = sheet.querySelector('#creditor-error');
+        try {
+          await S.updateCreditor(c.id, { name, note });
+          toast('Đã lưu', 'success');
+          closeFn();
+          openCreditorDetail(c.id);
+        } catch (err) { errEl.textContent = err.message || 'Có lỗi xảy ra'; errEl.style.display = 'block'; }
+      });
+    },
+  });
+}
+
+function openPayModal(c, balance) {
   function categoryOptionsHtml() {
-    return `<option value="">Không chọn</option>` + S.listCategories({ type: 'expense' }).map((c) => `<option value="${c.id}">${c.name}</option>`).join('');
+    return `<option value="">Không chọn</option>` + S.listCategories({ type: 'expense' }).map((cat) => `<option value="${cat.id}">${cat.name}</option>`).join('');
   }
   openModal({
-    title: `Trả nợ — ${d.name}`,
+    title: `Trả nợ — ${c.name}`,
     bodyHtml: `
-      <p class="text-sm text-muted mb-16">Còn phải trả: <b>${formatVND(d.remainingAmount)}</b> — sẽ tự tạo 1 giao dịch chi tương ứng.</p>
-      <div class="field"><label>Số tiền trả</label><input id="pay-amount" type="text" inputmode="numeric" value="${formatNumber(suggested)}"/></div>
+      <p class="text-sm text-muted mb-16">Còn nợ: <b>${formatVND(balance)}</b> — sẽ tự tạo 1 giao dịch chi tương ứng.</p>
+      <div class="field"><label>Số tiền trả</label><input id="pay-amount" type="text" inputmode="numeric" value="${formatNumber(Math.max(0, balance))}"/></div>
       <div class="field"><label>Ngày trả</label><input id="pay-date" type="date" value="${new Date().toISOString().slice(0, 10)}"/></div>
       <div class="field"><label>Danh mục (không bắt buộc)</label><select id="pay-cat">${categoryOptionsHtml()}</select></div>
       <div class="field-error" id="pay-error" style="display:none;margin-bottom:10px"></div>
@@ -134,42 +232,48 @@ function openPayModal(d) {
         const categoryId = sheet.querySelector('#pay-cat').value;
         const errEl = sheet.querySelector('#pay-error');
         try {
-          await S.payDebt(d.id, { amount, date, categoryId });
+          await S.addDebtPayment(c.id, { amount, date, categoryId });
           toast('Đã ghi nhận trả nợ', 'success');
           closeFn();
+          openCreditorDetail(c.id);
         } catch (err) { errEl.textContent = err.message || 'Có lỗi xảy ra'; errEl.style.display = 'block'; }
       });
     },
   });
 }
 
-function openDebtForm(d) {
+function openChargeForm({ creditorId, creditorName } = {}) {
+  const locked = !!creditorId;
   openModal({
-    title: d ? 'Sửa khoản nợ' : 'Thêm khoản nợ',
+    title: 'Ghi nợ mới',
     bodyHtml: `
-      <div class="field"><label>Tên khoản nợ</label><input id="debt-name" value="${d ? d.name.replace(/"/g, '&quot;') : ''}" placeholder="VD: Trả góp điện thoại" required/></div>
-      <div class="field"><label>Vay/mua của (không bắt buộc)</label><input id="debt-creditor" value="${d ? (d.creditor || '').replace(/"/g, '&quot;') : ''}"/></div>
-      <div class="field"><label>Tổng nợ gốc</label><input id="debt-total" type="text" inputmode="numeric" value="${d ? formatNumber(d.totalAmount) : ''}" required/></div>
-      <div class="field"><label>Ngày vay/mua</label><input id="debt-start" type="date" value="${d ? d.startDate : new Date().toISOString().slice(0, 10)}" required/></div>
-      <div class="field"><label>Ghi chú</label><input id="debt-note" value="${d ? (d.note || '').replace(/"/g, '&quot;') : ''}"/></div>
-      <div class="field-error" id="debt-error" style="display:none;margin-bottom:10px"></div>
+      <div class="field">
+        <label>Chủ nợ</label>
+        ${locked
+          ? `<input id="charge-creditor" value="${creditorName.replace(/"/g, '&quot;')}" readonly/>`
+          : `<input id="charge-creditor" list="creditor-names" placeholder="VD: Tạp hóa A" required autocomplete="off"/>
+             <datalist id="creditor-names">${S.listCreditors().map((c) => `<option value="${c.name.replace(/"/g, '&quot;')}">`).join('')}</datalist>`}
+      </div>
+      <div class="field"><label>Ngày mua nợ</label><input id="charge-date" type="date" value="${new Date().toISOString().slice(0, 10)}" required/></div>
+      <div class="field"><label>Mua gì (không bắt buộc)</label><input id="charge-desc" placeholder="VD: gạo, mắm, dầu ăn"/></div>
+      <div class="field"><label>Số tiền nợ</label><input id="charge-amount" type="text" inputmode="numeric" required/></div>
+      <div class="field-error" id="charge-error" style="display:none;margin-bottom:10px"></div>
     `,
-    footHtml: `<button class="btn btn-primary btn-block" data-save>${d ? 'Lưu thay đổi' : 'Thêm khoản nợ'}</button>`,
+    footHtml: `<button class="btn btn-primary btn-block" data-save>Ghi nợ</button>`,
     onMount(sheet, closeFn) {
-      attachMoneyInput(sheet.querySelector('#debt-total'));
+      attachMoneyInput(sheet.querySelector('#charge-amount'));
       sheet.querySelector('[data-save]').addEventListener('click', async () => {
-        const name = sheet.querySelector('#debt-name').value.trim();
-        const creditor = sheet.querySelector('#debt-creditor').value.trim();
-        const totalAmount = unformatMoney(sheet.querySelector('#debt-total').value);
-        const startDate = sheet.querySelector('#debt-start').value;
-        const note = sheet.querySelector('#debt-note').value;
-        const errEl = sheet.querySelector('#debt-error');
-        if (!name || !totalAmount) { errEl.textContent = 'Cần nhập đủ tên và tổng nợ gốc.'; errEl.style.display = 'block'; return; }
+        const creditorNameVal = locked ? creditorName : sheet.querySelector('#charge-creditor').value.trim();
+        const date = sheet.querySelector('#charge-date').value;
+        const description = sheet.querySelector('#charge-desc').value.trim();
+        const amount = unformatMoney(sheet.querySelector('#charge-amount').value);
+        const errEl = sheet.querySelector('#charge-error');
+        if (!creditorNameVal) { errEl.textContent = 'Cần nhập tên chủ nợ.'; errEl.style.display = 'block'; return; }
         try {
-          if (d) await S.updateDebt(d.id, { name, creditor, totalAmount, startDate, note });
-          else await S.addDebt({ name, creditor, totalAmount, startDate, note });
-          toast('Đã lưu khoản nợ', 'success');
+          await S.addDebtCharge({ creditorName: creditorNameVal, amount, date, description });
+          toast('Đã ghi nợ', 'success');
           closeFn();
+          if (locked) openCreditorDetail(creditorId);
         } catch (err) { errEl.textContent = err.message || 'Có lỗi xảy ra'; errEl.style.display = 'block'; }
       });
     },

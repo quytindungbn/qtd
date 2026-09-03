@@ -115,26 +115,26 @@ create table plans (
   created_at timestamptz default now()
 );
 
--- Quản lý nợ (vd nợ mua sắm trả góp, vay mượn) — dư nợ giảm dần mỗi lần trả,
--- mỗi lần trả tự tạo 1 giao dịch chi tiêu thật (xem debt_payments.transaction_id)
--- để không bị lệch tổng chi tiêu tháng.
-create table debts (
+-- Quản lý nợ theo TỪNG CHỦ NỢ (vd "Tạp hóa A", "Anh Ba") — mỗi chủ nợ có 1
+-- sổ riêng gồm nhiều dòng: "ghi nợ" (mua gì, ngày nào, nợ bao nhiêu) và "trả
+-- nợ" (ngày nào, trả bao nhiêu). Còn nợ = tổng ghi nợ - tổng trả nợ, tính
+-- ngay khi đọc dữ liệu (không lưu cột riêng để khỏi lệch). Ghi nợ KHÔNG tạo
+-- giao dịch (chưa mất tiền thật) — chỉ "trả nợ" mới tự tạo 1 giao dịch chi
+-- tiêu thật (xem debt_entries.transaction_id) để không lệch tổng chi tháng.
+create table creditors (
   id text primary key,
-  name text not null,
-  creditor text, -- vay/mua của ai (không bắt buộc)
-  total_amount numeric not null,
-  remaining_amount numeric not null,
-  start_date date not null default current_date,
-  status text not null default 'active' check (status in ('active','paid')),
+  name text not null, -- tên chủ nợ/khách hàng, VD "Tạp hóa A"
   note text,
   user_id text references users(id) on delete set null,
   created_at timestamptz default now()
 );
-create table debt_payments (
+create table debt_entries (
   id text primary key,
-  debt_id text not null references debts(id) on delete cascade,
+  creditor_id text not null references creditors(id) on delete cascade,
+  kind text not null check (kind in ('charge','payment')), -- charge = ghi nợ thêm, payment = trả nợ
   amount numeric not null,
-  payment_date date not null,
+  entry_date date not null default current_date,
+  description text, -- charge: mua gì; payment: ghi chú (không bắt buộc)
   transaction_id text references transactions(id) on delete set null,
   user_id text references users(id) on delete set null,
   created_at timestamptz default now()
@@ -153,8 +153,9 @@ create index on transactions (user_id);
 create index on budgets (year, month);
 create index on plans (status);
 create index on plans (due_date);
-create index on debts (status);
-create index on debt_payments (debt_id);
+create index on creditors (user_id);
+create index on debt_entries (creditor_id);
+create index on debt_entries (entry_date);
 ```
 
 ## 3. Row Level Security + quyền bảng
@@ -167,8 +168,8 @@ alter table transactions enable row level security;
 alter table budgets enable row level security;
 alter table savings_goals enable row level security;
 alter table plans enable row level security;
-alter table debts enable row level security;
-alter table debt_payments enable row level security;
+alter table creditors enable row level security;
+alter table debt_entries enable row level security;
 alter table app_settings enable row level security;
 
 grant usage on schema public to anon, authenticated, service_role;
@@ -178,7 +179,7 @@ grant usage on schema public to anon, authenticated, service_role;
 grant select, insert, update, delete on users to service_role;
 grant select on user_profiles to anon, authenticated;
 
-grant select, insert, update, delete on categories, recurring_transactions, transactions, budgets, savings_goals, plans, debts, debt_payments
+grant select, insert, update, delete on categories, recurring_transactions, transactions, budgets, savings_goals, plans, creditors, debt_entries
   to authenticated, service_role;
 grant select on app_settings to anon, authenticated;
 grant update on app_settings to authenticated, service_role;
@@ -204,11 +205,11 @@ create policy "authenticated full access plans" on plans
   for all using ((auth.jwt() ->> 'app_role') in ('owner','member'))
   with check ((auth.jwt() ->> 'app_role') in ('owner','member'));
 -- Quản lý nợ RIÊNG của từng người dùng (không chia sẻ như các bảng trên) —
--- mỗi người chỉ xem/sửa được đúng khoản nợ do mình tạo (kể cả owner).
-create policy "own debts only" on debts
+-- mỗi người chỉ xem/sửa được đúng chủ nợ/sổ nợ do mình tạo (kể cả owner).
+create policy "own creditors only" on creditors
   for all using ((auth.jwt() ->> 'row_id') = user_id)
   with check ((auth.jwt() ->> 'row_id') = user_id);
-create policy "own debt_payments only" on debt_payments
+create policy "own debt_entries only" on debt_entries
   for all using ((auth.jwt() ->> 'row_id') = user_id)
   with check ((auth.jwt() ->> 'row_id') = user_id);
 
@@ -280,58 +281,46 @@ create policy "authenticated full access plans" on plans
 Sau đó cần **deploy lại Edge Function** với code mới nhất (không đổi gì về SQL/JWT, chỉ để chắc
 chắn code khớp bản mới nhất — xem lại mục 4).
 
-## 8. Bổ sung sau: bảng "Quản lý nợ" (nếu project đã tạo trước khi có mục này)
+## 8. Bổ sung sau: bảng "Quản lý nợ" theo chủ nợ (nếu project đã tạo trước khi có mục này)
 
-Chạy đúng đoạn SQL sau trong **SQL Editor** (không ảnh hưởng gì tới dữ liệu đã có):
+Đoạn dưới **tự xóa bảng `debts`/`debt_payments` bản cũ nếu có** (bản cũ dùng thử trước đó,
+kiểu 1-khoản-nợ-tổng, chưa theo chủ nợ) rồi tạo lại đúng theo mô hình sổ nợ theo từng chủ nợ.
+Nếu bạn CHƯA từng chạy SQL nợ nào thì lệnh `drop` chỉ đơn giản không làm gì, an toàn để chạy:
 
 ```sql
-create table debts (
+drop table if exists debt_payments;
+drop table if exists debts;
+
+create table creditors (
   id text primary key,
   name text not null,
-  creditor text,
-  total_amount numeric not null,
-  remaining_amount numeric not null,
-  start_date date not null default current_date,
-  status text not null default 'active' check (status in ('active','paid')),
   note text,
   user_id text references users(id) on delete set null,
   created_at timestamptz default now()
 );
-create table debt_payments (
+create table debt_entries (
   id text primary key,
-  debt_id text not null references debts(id) on delete cascade,
+  creditor_id text not null references creditors(id) on delete cascade,
+  kind text not null check (kind in ('charge','payment')),
   amount numeric not null,
-  payment_date date not null,
+  entry_date date not null default current_date,
+  description text,
   transaction_id text references transactions(id) on delete set null,
   user_id text references users(id) on delete set null,
   created_at timestamptz default now()
 );
-create index on debts (status);
-create index on debt_payments (debt_id);
+create index on creditors (user_id);
+create index on debt_entries (creditor_id);
+create index on debt_entries (entry_date);
 
-alter table debts enable row level security;
-alter table debt_payments enable row level security;
-grant select, insert, update, delete on debts, debt_payments to authenticated, service_role;
--- Riêng của từng người dùng, không chia sẻ như các bảng khác — mỗi người chỉ
--- xem/sửa được đúng khoản nợ do mình tạo (kể cả owner).
-create policy "own debts only" on debts
+alter table creditors enable row level security;
+alter table debt_entries enable row level security;
+grant select, insert, update, delete on creditors, debt_entries to authenticated, service_role;
+-- Riêng của từng người dùng — mỗi người chỉ xem/sửa được đúng chủ nợ/sổ nợ do mình tạo (kể cả owner).
+create policy "own creditors only" on creditors
   for all using ((auth.jwt() ->> 'row_id') = user_id)
   with check ((auth.jwt() ->> 'row_id') = user_id);
-create policy "own debt_payments only" on debt_payments
-  for all using ((auth.jwt() ->> 'row_id') = user_id)
-  with check ((auth.jwt() ->> 'row_id') = user_id);
-```
-
-Nếu project của bạn đã chạy đoạn SQL debts/debt_payments cũ (dùng chung cho cả nhà) từ
-trước, đổi sang riêng-tư bằng cách chạy thêm:
-
-```sql
-drop policy if exists "authenticated full access debts" on debts;
-drop policy if exists "authenticated full access debt_payments" on debt_payments;
-create policy "own debts only" on debts
-  for all using ((auth.jwt() ->> 'row_id') = user_id)
-  with check ((auth.jwt() ->> 'row_id') = user_id);
-create policy "own debt_payments only" on debt_payments
+create policy "own debt_entries only" on debt_entries
   for all using ((auth.jwt() ->> 'row_id') = user_id)
   with check ((auth.jwt() ->> 'row_id') = user_id);
 ```
