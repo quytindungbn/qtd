@@ -42,7 +42,7 @@ function persist() {
 function emptyState() {
   return {
     settings: { householdName: 'Sổ chi tiêu của tôi', currency: 'đ' },
-    users: [], categories: [], transactions: [], budgets: [], recurring: [], savingsGoals: [],
+    users: [], categories: [], transactions: [], budgets: [], recurring: [], savingsGoals: [], plans: [],
     session: null,
   };
 }
@@ -108,13 +108,14 @@ export async function login(identifier, password) {
 
 async function loadSessionData(token) {
   const sb = getSupabaseClient(token);
-  const [{ data: userRows }, { data: catRows }, { data: txnRows }, { data: budgetRows }, { data: recRows }, { data: goalRows }] = await Promise.all([
+  const [{ data: userRows }, { data: catRows }, { data: txnRows }, { data: budgetRows }, { data: recRows }, { data: goalRows }, { data: planRows }] = await Promise.all([
     sb.from('user_profiles').select('*'),
     sb.from('categories').select('*').order('sort_order'),
     sb.from('transactions').select('*').order('txn_date', { ascending: false }),
     sb.from('budgets').select('*'),
     sb.from('recurring_transactions').select('*'),
     sb.from('savings_goals').select('*'),
+    sb.from('plans').select('*'),
   ]);
   state.users = (userRows || []).map(mapUserProfileRow);
   state.categories = (catRows || []).map(mapCategoryRow);
@@ -122,6 +123,7 @@ async function loadSessionData(token) {
   state.budgets = (budgetRows || []).map(mapBudgetRow);
   state.recurring = (recRows || []).map(mapRecurringRow);
   state.savingsGoals = (goalRows || []).map(mapSavingsGoalRow);
+  state.plans = (planRows || []).map(mapPlanRow);
   if (state.categories.length === 0) await seedDefaultCategories(sb);
 }
 
@@ -164,6 +166,13 @@ function mapSavingsGoalRow(row) {
   return {
     id: row.id, name: row.name, targetAmount: Number(row.target_amount), currentAmount: Number(row.current_amount || 0),
     deadline: row.deadline, note: row.note || '', userId: row.user_id,
+  };
+}
+function mapPlanRow(row) {
+  return {
+    id: row.id, type: row.type, amount: Number(row.amount), categoryId: row.category_id,
+    title: row.title, dueDate: row.due_date, status: row.status,
+    transactionId: row.transaction_id, userId: row.user_id, createdAt: row.created_at,
   };
 }
 
@@ -493,12 +502,88 @@ export async function deleteSavingsGoal(id) {
 }
 
 // ------------------------------------------------------------
+// Kế hoạch chi tiêu — khoản thu/chi DỰ ĐỊNH (vd "cuối tháng mua sắm 2
+// triệu"): chỉ để nhắc/theo dõi, KHÔNG tính vào tổng thu/chi thật cho tới
+// khi tick "Hoàn thành" — lúc đó completePlan() mới tự tạo 1 giao dịch thật
+// (transactions) và đánh dấu kế hoạch xong, liên kết qua transactionId.
+// ------------------------------------------------------------
+export function listPlans(filters = {}) {
+  let list = state.plans;
+  if (filters.status) list = list.filter((p) => p.status === filters.status);
+  return list.slice().sort((a, b) => (a.dueDate || '9999-99-99').localeCompare(b.dueDate || '9999-99-99'));
+}
+export function getPlan(id) { return state.plans.find((p) => p.id === id); }
+/** Kế hoạch chưa hoàn thành đã có ngày dự định, sắp tới (trong `days` ngày) hoặc đã quá hạn — dùng cho thông báo trên Tổng quan. */
+export function upcomingPlans(asOf = new Date(), days = 7) {
+  const todayStr = asOf.toISOString().slice(0, 10);
+  const limitStr = addDaysISO(todayStr, days);
+  return listPlans({ status: 'pending' }).filter((p) => p.dueDate && p.dueDate <= limitStr);
+}
+function addDaysISO(iso, n) {
+  const dt = new Date(iso);
+  dt.setDate(dt.getDate() + n);
+  return dt.toISOString().slice(0, 10);
+}
+
+export async function addPlan({ type, amount, categoryId, title, dueDate }) {
+  const session = getSession();
+  const sb = getSupabaseClient(session?.sbToken);
+  const row = {
+    id: genId('plan'), type, amount: Number(amount) || 0, category_id: categoryId || null,
+    title, due_date: dueDate || null, status: 'pending', user_id: session.id,
+  };
+  const { error } = await sb.from('plans').insert(row);
+  if (error) throw new Error('Không lưu được kế hoạch, thử lại sau.');
+  state.plans.push(mapPlanRow({ ...row, created_at: new Date().toISOString() }));
+  notify();
+}
+export async function updatePlan(id, { type, amount, categoryId, title, dueDate }) {
+  const session = getSession();
+  const sb = getSupabaseClient(session?.sbToken);
+  const patch = { type, amount: Number(amount) || 0, category_id: categoryId || null, title, due_date: dueDate || null };
+  const { error } = await sb.from('plans').update(patch).eq('id', id);
+  if (error) throw new Error('Không cập nhật được, thử lại sau.');
+  const p = getPlan(id);
+  if (p) Object.assign(p, { type, amount: patch.amount, categoryId: patch.category_id, title, dueDate: patch.due_date });
+  notify();
+}
+export async function deletePlan(id) {
+  const session = getSession();
+  const sb = getSupabaseClient(session?.sbToken);
+  const { error } = await sb.from('plans').delete().eq('id', id);
+  if (error) throw new Error('Không xóa được, thử lại sau.');
+  state.plans = state.plans.filter((p) => p.id !== id);
+  notify();
+}
+/** Tick "Hoàn thành" — tự tạo giao dịch thật (thu hoặc chi) rồi mới đánh dấu kế hoạch xong, liên kết 2 bên qua transactionId. Có thể sửa lại số tiền/ngày lúc xác nhận nếu khác dự tính ban đầu. */
+export async function completePlan(id, { amount, date } = {}) {
+  const p = getPlan(id);
+  if (!p) throw new Error('Không tìm thấy kế hoạch.');
+  const session = getSession();
+  const sb = getSupabaseClient(session?.sbToken);
+  const finalAmount = amount != null ? Number(amount) || 0 : p.amount;
+  const finalDate = date || new Date().toISOString().slice(0, 10);
+  const txnRow = {
+    id: genId('txn'), type: p.type, amount: finalAmount, category_id: p.categoryId,
+    note: p.title, txn_date: finalDate, user_id: session.id, recurring_id: null,
+  };
+  const { error: txnErr } = await sb.from('transactions').insert(txnRow);
+  if (txnErr) throw new Error('Không tạo được giao dịch, thử lại sau.');
+  const { error: planErr } = await sb.from('plans').update({ status: 'done', transaction_id: txnRow.id }).eq('id', id);
+  if (planErr) throw new Error('Đã tạo giao dịch nhưng chưa cập nhật được trạng thái kế hoạch, thử lại sau.');
+  state.transactions.unshift(mapTransactionRow({ ...txnRow, created_at: new Date().toISOString() }));
+  p.status = 'done';
+  p.transactionId = txnRow.id;
+  notify();
+}
+
+// ------------------------------------------------------------
 // Session (đăng nhập hiện tại)
 // ------------------------------------------------------------
 export function getSession() { return state.session; }
 export function setSession(session) { state.session = session; notify(); }
 export function logout() {
   state.session = null;
-  state.users = []; state.categories = []; state.transactions = []; state.budgets = []; state.recurring = []; state.savingsGoals = [];
+  state.users = []; state.categories = []; state.transactions = []; state.budgets = []; state.recurring = []; state.savingsGoals = []; state.plans = [];
   notify();
 }

@@ -13,14 +13,13 @@ let tab = 'budget';
 let cursor = new Date();
 
 export function renderHeader(headerEl) {
-  headerEl.innerHTML = pageHeader({ title: 'Kế hoạch chi tiêu' });
+  headerEl.innerHTML = pageHeader({ title: 'Ngân sách' });
 }
 
 export function render(contentEl) {
   contentEl.innerHTML = `
-    <p class="text-sm text-muted mb-16">Đặt mức chi tiêu định sẵn cho từng danh mục trong tháng — đây là kế hoạch chi tiêu hàng tháng của bạn, giúp kiểm soát không chi vượt dự tính.</p>
     <div class="tabs mb-16">
-      <button data-tab="budget" class="${tab === 'budget' ? 'active' : ''}">Kế hoạch tháng</button>
+      <button data-tab="budget" class="${tab === 'budget' ? 'active' : ''}">Ngân sách tháng</button>
       <button data-tab="category" class="${tab === 'category' ? 'active' : ''}">Danh mục</button>
     </div>
     <div id="tab-body"></div>
@@ -47,7 +46,7 @@ function renderBudgetTab(body) {
     ${totalLimit ? `
     <div class="card card-pad mb-16">
       <div class="flex items-center justify-between mb-4">
-        <span class="text-sm fw-700">Tổng kế hoạch chi tiêu tháng</span>
+        <span class="text-sm fw-700">Tổng ngân sách</span>
         <span class="text-sm ${totalSpent > totalLimit ? 'text-danger' : 'text-muted'}">${formatVND(totalSpent)} / ${formatVND(totalLimit)}</span>
       </div>
       <div class="progress-bar ${totalSpent > totalLimit ? 'over' : ''}"><div class="progress-fill" style="width:${Math.min(100, Math.round(totalSpent / totalLimit * 100))}%"></div></div>

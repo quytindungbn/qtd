@@ -21,6 +21,7 @@ export function render(contentEl) {
   const budgetRows = S.budgetOverviewForMonth(year, month).filter((r) => r.limit != null);
   const overBudget = budgetRows.filter((r) => r.over);
   const reminders = S.pendingRecurringReminders(now);
+  const plans = S.upcomingPlans(now);
   const recent = S.listTransactions({}).slice(0, 6);
 
   contentEl.innerHTML = `
@@ -61,16 +62,23 @@ export function render(contentEl) {
       <a href="#/dinh-ky" class="link-more" style="display:inline-block;margin-top:8px">Xem & xác nhận →</a>
     </div>` : ''}
 
+    ${plans.length ? `
+    <div class="card card-pad mb-16" style="background:var(--info-bg);border-color:transparent">
+      <div class="flex items-center gap-8 mb-8" style="color:var(--color-primary-dark)">${icon('calendar', 'icon-sm')}<b class="text-sm">${plans.length} kế hoạch chi tiêu sắp tới/quá hạn</b></div>
+      ${plans.map((p) => `<div class="oc-line"><span>${p.title} (${formatDate(p.dueDate)})</span><b>${p.type === 'expense' ? '-' : '+'}${formatVND(p.amount)}</b></div>`).join('')}
+      <a href="#/ke-hoach" class="link-more" style="display:inline-block;margin-top:8px">Xem & đánh dấu hoàn thành →</a>
+    </div>` : ''}
+
     ${overBudget.length ? `
     <div class="card card-pad mb-16" style="background:var(--danger-bg);border-color:transparent">
-      <div class="flex items-center gap-8 mb-4" style="color:var(--danger)">${icon('alert', 'icon-sm')}<b class="text-sm">${overBudget.length} danh mục đã vượt kế hoạch chi tiêu tháng này</b></div>
+      <div class="flex items-center gap-8 mb-4" style="color:var(--danger)">${icon('alert', 'icon-sm')}<b class="text-sm">${overBudget.length} danh mục đã vượt ngân sách tháng này</b></div>
       ${overBudget.map((r) => `<div class="oc-line"><span>${r.category.name}</span><b style="color:var(--danger)">${formatVND(r.spent)} / ${formatVND(r.limit)}</b></div>`).join('')}
-      <a href="#/ngan-sach" class="link-more" style="display:inline-block;margin-top:8px">Xem kế hoạch chi tiêu →</a>
+      <a href="#/ngan-sach" class="link-more" style="display:inline-block;margin-top:8px">Xem ngân sách →</a>
     </div>` : ''}
 
     ${budgetRows.length ? `
     <div class="card card-pad mb-16">
-      <div class="section-head"><h2>Kế hoạch chi tiêu theo danh mục</h2><a href="#/ngan-sach" class="link-more">Xem tất cả</a></div>
+      <div class="section-head"><h2>Ngân sách theo danh mục</h2><a href="#/ngan-sach" class="link-more">Xem tất cả</a></div>
       ${budgetRows.slice(0, 5).map((r) => budgetRowHtml(r)).join('')}
     </div>` : ''}
 
@@ -81,7 +89,7 @@ export function render(contentEl) {
   `;
 
   if (!S.listCategories().length) {
-    contentEl.insertAdjacentHTML('afterbegin', `<div class="card card-pad mb-16">${emptyState({ iconName: 'wallet', title: 'Chưa có danh mục nào', message: 'Vào trang Kế hoạch chi tiêu để tạo danh mục thu/chi trước khi bắt đầu ghi sổ.' })}</div>`);
+    contentEl.insertAdjacentHTML('afterbegin', `<div class="card card-pad mb-16">${emptyState({ iconName: 'wallet', title: 'Chưa có danh mục nào', message: 'Vào trang Ngân sách để tạo danh mục thu/chi trước khi bắt đầu ghi sổ.' })}</div>`);
   }
 
   const fab = document.createElement('button');

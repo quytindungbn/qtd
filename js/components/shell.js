@@ -4,9 +4,10 @@ import { openModal } from './modal.js';
 export const NAV = [
   { path: '#/', label: 'Tổng quan', shortLabel: 'Tổng quan', icon: 'chart' },
   { path: '#/giao-dich', label: 'Giao dịch', shortLabel: 'Giao dịch', icon: 'wallet' },
-  { path: '#/ngan-sach', label: 'Kế hoạch chi tiêu', shortLabel: 'Kế hoạch', icon: 'tag' },
+  { path: '#/ngan-sach', label: 'Ngân sách', shortLabel: 'Ngân sách', icon: 'tag' },
   { path: '#/bao-cao', label: 'Báo cáo', shortLabel: 'Báo cáo', icon: 'trendingUp' },
   { path: '#/dinh-ky', label: 'Định kỳ', shortLabel: 'Định kỳ', icon: 'refresh' },
+  { path: '#/ke-hoach', label: 'Kế hoạch chi tiêu', shortLabel: 'Kế hoạch', icon: 'calendar' },
   { path: '#/tiet-kiem', label: 'Tiết kiệm', shortLabel: 'Tiết kiệm', icon: 'target' },
 ];
 export const NAV_OWNER_ONLY = [

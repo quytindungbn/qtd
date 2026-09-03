@@ -22,6 +22,17 @@ export function render(contentEl) {
   const trend = S.last6MonthsTotals(cursor);
   const maxTrend = Math.max(1, ...trend.map((m) => Math.max(m.income, m.expense)));
 
+  // Tổng kết cả năm (đúng năm đang xem theo tháng ở trên) — cộng dồn số dư
+  // từng tháng thành lũy kế, để nhìn được cả năm tại 1 bảng thay vì bấm
+  // từng tháng riêng lẻ.
+  let cumulative = 0;
+  const yearRows = Array.from({ length: 12 }, (_, i) => {
+    const m = i + 1;
+    const t = S.totalsForMonth(year, m);
+    cumulative += t.balance;
+    return { month: m, ...t, cumulative };
+  });
+
   contentEl.innerHTML = `
     <div class="flex items-center justify-between mb-16">
       <button class="icon-btn" id="btn-prev-month">${icon('chevronLeft')}</button>
@@ -69,6 +80,25 @@ export function render(contentEl) {
       <div class="chart-legend-row">
         <span><span class="dot" style="background:var(--success)"></span>Thu</span>
         <span><span class="dot" style="background:var(--danger)"></span>Chi</span>
+      </div>
+    </div>
+
+    <div class="card card-pad mt-16">
+      <div class="section-head"><h2>Tổng kết theo tháng — năm ${year}</h2></div>
+      <div class="data-table-wrap">
+        <table class="data-table">
+          <thead><tr><th>Tháng</th><th>Thu</th><th>Chi</th><th>Số dư</th><th>Lũy kế cả năm</th></tr></thead>
+          <tbody>
+            ${yearRows.map((r) => `
+              <tr class="${r.month === month ? 'current-month' : ''}">
+                <td>Tháng ${r.month}</td>
+                <td style="color:var(--success)">${r.income ? formatVND(r.income) : '—'}</td>
+                <td style="color:var(--danger)">${r.expense ? formatVND(r.expense) : '—'}</td>
+                <td>${formatVND(r.balance)}</td>
+                <td>${formatVND(r.cumulative)}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
       </div>
     </div>
   `;

@@ -99,6 +99,22 @@ create table savings_goals (
   created_at timestamptz default now()
 );
 
+-- Kế hoạch chi tiêu: khoản thu/chi DỰ ĐỊNH (vd "cuối tháng mua sắm 2 triệu")
+-- — chỉ để nhắc/theo dõi, CHƯA tính vào thu/chi thật cho tới khi tick "Hoàn
+-- thành" (lúc đó mới tự tạo 1 dòng trong transactions, xem transaction_id).
+create table plans (
+  id text primary key,
+  type text not null check (type in ('expense','income')),
+  amount numeric not null,
+  category_id text references categories(id) on delete set null,
+  title text not null,
+  due_date date,
+  status text not null default 'pending' check (status in ('pending','done')),
+  transaction_id text references transactions(id) on delete set null,
+  user_id text references users(id) on delete set null,
+  created_at timestamptz default now()
+);
+
 create table app_settings (
   id text primary key default 'main',
   household_name text not null default 'Sổ chi tiêu của tôi',
@@ -110,6 +126,8 @@ create index on transactions (txn_date);
 create index on transactions (category_id);
 create index on transactions (user_id);
 create index on budgets (year, month);
+create index on plans (status);
+create index on plans (due_date);
 ```
 
 ## 3. Row Level Security + quyền bảng
@@ -121,6 +139,7 @@ alter table recurring_transactions enable row level security;
 alter table transactions enable row level security;
 alter table budgets enable row level security;
 alter table savings_goals enable row level security;
+alter table plans enable row level security;
 alter table app_settings enable row level security;
 
 grant usage on schema public to anon, authenticated, service_role;
@@ -130,7 +149,7 @@ grant usage on schema public to anon, authenticated, service_role;
 grant select, insert, update, delete on users to service_role;
 grant select on user_profiles to anon, authenticated;
 
-grant select, insert, update, delete on categories, recurring_transactions, transactions, budgets, savings_goals
+grant select, insert, update, delete on categories, recurring_transactions, transactions, budgets, savings_goals, plans
   to authenticated, service_role;
 grant select on app_settings to anon, authenticated;
 grant update on app_settings to authenticated, service_role;
@@ -150,6 +169,9 @@ create policy "authenticated full access budgets" on budgets
   for all using ((auth.jwt() ->> 'app_role') in ('owner','member'))
   with check ((auth.jwt() ->> 'app_role') in ('owner','member'));
 create policy "authenticated full access savings" on savings_goals
+  for all using ((auth.jwt() ->> 'app_role') in ('owner','member'))
+  with check ((auth.jwt() ->> 'app_role') in ('owner','member'));
+create policy "authenticated full access plans" on plans
   for all using ((auth.jwt() ->> 'app_role') in ('owner','member'))
   with check ((auth.jwt() ->> 'app_role') in ('owner','member'));
 
@@ -190,7 +212,38 @@ select
 from (select encode(gen_random_bytes(8), 'hex') as salt) s;
 ```
 
-## 6. Việc còn lại
+## 7. Bổ sung sau: bảng "Kế hoạch chi tiêu" (nếu project đã tạo trước khi có mục này)
+
+Nếu bạn đã chạy schema ở mục 2 TRƯỚC KHI bảng `plans` được thêm vào tài liệu này, chạy bổ sung
+đúng đoạn SQL sau trong **SQL Editor** (không ảnh hưởng gì tới dữ liệu đã có):
+
+```sql
+create table plans (
+  id text primary key,
+  type text not null check (type in ('expense','income')),
+  amount numeric not null,
+  category_id text references categories(id) on delete set null,
+  title text not null,
+  due_date date,
+  status text not null default 'pending' check (status in ('pending','done')),
+  transaction_id text references transactions(id) on delete set null,
+  user_id text references users(id) on delete set null,
+  created_at timestamptz default now()
+);
+create index on plans (status);
+create index on plans (due_date);
+
+alter table plans enable row level security;
+grant select, insert, update, delete on plans to authenticated, service_role;
+create policy "authenticated full access plans" on plans
+  for all using ((auth.jwt() ->> 'app_role') in ('owner','member'))
+  with check ((auth.jwt() ->> 'app_role') in ('owner','member'));
+```
+
+Sau đó cần **deploy lại Edge Function** với code mới nhất (không đổi gì về SQL/JWT, chỉ để chắc
+chắn code khớp bản mới nhất — xem lại mục 4).
+
+## 8. Việc còn lại
 
 - [ ] Đổi mật khẩu owner ngay sau lần đăng nhập đầu tiên (app tự bắt đổi).
 - [ ] Rà soát dữ liệu chi tiêu thật trước khi coi là "đang dùng thật".

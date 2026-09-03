@@ -438,6 +438,14 @@ svg { display: block; }
 .chart-legend-row { display: flex; gap: 16px; justify-content: center; margin-top: 10px; font-size: 12px; color: var(--text-muted); }
 .chart-legend-row .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 5px; }
 
+/* Bảng dữ liệu đơn giản (vd: tổng kết theo tháng) — cuộn ngang trên màn hình hẹp */
+.data-table-wrap { overflow-x: auto; }
+.data-table { width: 100%; border-collapse: collapse; font-size: 13px; white-space: nowrap; }
+.data-table th { text-align: right; font-size: 11.5px; color: var(--text-faint); font-weight: 700; padding: 0 8px 8px; }
+.data-table th:first-child, .data-table td:first-child { text-align: left; }
+.data-table td { text-align: right; padding: 9px 8px; border-top: 1px solid var(--border); }
+.data-table tr.current-month td { font-weight: 700; color: var(--color-primary-dark); }
+
 .pie-wrap { display: flex; align-items: center; gap: 18px; }
 .pie-donut { width: 118px; height: 118px; border-radius: 50%; flex-shrink: 0; position: relative; }
 .pie-donut::after {
