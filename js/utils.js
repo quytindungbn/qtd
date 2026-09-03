@@ -138,3 +138,26 @@ export function maskCccd(cccd) {
 export function daysUntil(dateStr) {
   return daysBetween(new Date(), new Date(dateStr));
 }
+
+/**
+ * Gắn định dạng "1.500.000" (dấu chấm ngăn cách hàng nghìn) tự động khi gõ
+ * vào 1 ô input tiền — dùng cho input type="text" (KHÔNG dùng type="number"
+ * vì trình duyệt không cho hiện dấu chấm trong ô number). `allowNegative`
+ * cho phép gõ dấu "-" ở đầu (dùng cho ô "góp/rút" có thể âm).
+ */
+export function attachMoneyInput(inputEl, { allowNegative = false } = {}) {
+  inputEl.setAttribute('inputmode', 'numeric');
+  inputEl.addEventListener('input', () => {
+    const negative = allowNegative && inputEl.value.trim().startsWith('-');
+    const digits = inputEl.value.replace(/\D/g, '');
+    inputEl.value = (negative ? '-' : '') + (digits ? formatNumber(Number(digits)) : '');
+  });
+}
+
+/** Đọc lại số thật từ ô đã định dạng attachMoneyInput() ở trên (bỏ dấu chấm). */
+export function unformatMoney(str) {
+  const negative = String(str ?? '').trim().startsWith('-');
+  const digits = String(str ?? '').replace(/\D/g, '');
+  const n = digits ? Number(digits) : 0;
+  return negative ? -n : n;
+}

@@ -5,6 +5,7 @@ import * as S from '../state.js';
 import { icon } from '../icons.js';
 import { openModal } from './modal.js';
 import { toast } from './toast.js';
+import { formatNumber, attachMoneyInput, unformatMoney } from '../utils.js';
 
 /**
  * opts: { transaction? (sửa nếu có), defaultType?, onSaved? }
@@ -26,7 +27,7 @@ export function openTransactionForm({ transaction, defaultType = 'expense', onSa
       <form id="txn-form">
         <div class="field">
           <label>Số tiền</label>
-          <input name="amount" type="number" min="1" step="1" required value="${transaction ? transaction.amount : ''}" placeholder="0"/>
+          <input name="amount" id="txn-amount" type="text" inputmode="numeric" required value="${transaction ? formatNumber(transaction.amount) : ''}" placeholder="0"/>
         </div>
         <div class="field">
           <label>Danh mục</label>
@@ -47,6 +48,7 @@ export function openTransactionForm({ transaction, defaultType = 'expense', onSa
     onMount(sheet) {
       const form = sheet.querySelector('#txn-form');
       const catSelect = sheet.querySelector('#txn-cat-select');
+      attachMoneyInput(sheet.querySelector('#txn-amount'));
       sheet.querySelectorAll('[data-type]').forEach((btn) => {
         btn.addEventListener('click', () => {
           type = btn.dataset.type;
@@ -63,7 +65,7 @@ export function openTransactionForm({ transaction, defaultType = 'expense', onSa
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
         const fd = new FormData(form);
-        const payload = { type, amount: fd.get('amount'), categoryId: fd.get('categoryId'), date: fd.get('date'), note: fd.get('note') };
+        const payload = { type, amount: unformatMoney(fd.get('amount')), categoryId: fd.get('categoryId'), date: fd.get('date'), note: fd.get('note') };
         const errEl = sheet.querySelector('#txn-error');
         const btn = form.querySelector('button[type="submit"]');
         btn.disabled = true;

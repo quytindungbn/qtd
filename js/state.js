@@ -324,11 +324,18 @@ export function expenseByCategoryForMonth(year, month) {
   return map;
 }
 /** Dự báo tổng chi cuối tháng dựa trên tốc độ chi tiêu hiện tại (chỉ có ý nghĩa với tháng hiện tại). */
+/**
+ * Công thức: (tổng đã chi từ đầu tháng đến hôm nay ÷ số ngày đã qua) × tổng
+ * số ngày trong tháng — suy ra tốc độ chi trung bình mỗi ngày rồi nhân lên
+ * cho cả tháng. Trả về null nếu mới đầu tháng (dưới 3 ngày dữ liệu): quá ít
+ * dữ liệu khiến con số dễ lệch rất xa thực tế (vd: mới trả 1 khoản lớn như
+ * tiền nhà ngay ngày 1-2 sẽ bị nhân lên thành số khổng lồ sai lệch).
+ */
 export function forecastExpense(year, month, asOf = new Date()) {
   const { lastDay } = monthRange(year, month);
   const dayOfMonth = Math.min(asOf.getDate(), lastDay);
   const { expense } = totalsForMonth(year, month);
-  if (dayOfMonth <= 0) return expense;
+  if (dayOfMonth < 3) return null;
   return Math.round((expense / dayOfMonth) * lastDay);
 }
 /** Tổng thu/chi 6 tháng gần nhất (tính cả tháng hiện tại) — mới nhất ở cuối mảng, dùng cho biểu đồ xu hướng. */

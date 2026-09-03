@@ -4,7 +4,7 @@ import { pageHeader } from '../components/shell.js';
 import { openModal, confirmDialog } from '../components/modal.js';
 import { emptyState } from '../components/ui.js';
 import { toast } from '../components/toast.js';
-import { formatVND } from '../utils.js';
+import { formatVND, formatNumber, attachMoneyInput, unformatMoney } from '../utils.js';
 
 const MONTH_NAMES = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6','Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
 const PALETTE = ['#0f6f61', '#2f6fed', '#16a34a', '#d97706', '#db2777', '#7c3aed', '#0891b2', '#dc2626'];
@@ -13,13 +13,14 @@ let tab = 'budget';
 let cursor = new Date();
 
 export function renderHeader(headerEl) {
-  headerEl.innerHTML = pageHeader({ title: 'Ngân sách' });
+  headerEl.innerHTML = pageHeader({ title: 'Kế hoạch chi tiêu' });
 }
 
 export function render(contentEl) {
   contentEl.innerHTML = `
+    <p class="text-sm text-muted mb-16">Đặt mức chi tiêu định sẵn cho từng danh mục trong tháng — đây là kế hoạch chi tiêu hàng tháng của bạn, giúp kiểm soát không chi vượt dự tính.</p>
     <div class="tabs mb-16">
-      <button data-tab="budget" class="${tab === 'budget' ? 'active' : ''}">Ngân sách tháng</button>
+      <button data-tab="budget" class="${tab === 'budget' ? 'active' : ''}">Kế hoạch tháng</button>
       <button data-tab="category" class="${tab === 'category' ? 'active' : ''}">Danh mục</button>
     </div>
     <div id="tab-body"></div>
@@ -46,7 +47,7 @@ function renderBudgetTab(body) {
     ${totalLimit ? `
     <div class="card card-pad mb-16">
       <div class="flex items-center justify-between mb-4">
-        <span class="text-sm fw-700">Tổng ngân sách</span>
+        <span class="text-sm fw-700">Tổng kế hoạch chi tiêu tháng</span>
         <span class="text-sm ${totalSpent > totalLimit ? 'text-danger' : 'text-muted'}">${formatVND(totalSpent)} / ${formatVND(totalLimit)}</span>
       </div>
       <div class="progress-bar ${totalSpent > totalLimit ? 'over' : ''}"><div class="progress-fill" style="width:${Math.min(100, Math.round(totalSpent / totalLimit * 100))}%"></div></div>
@@ -89,16 +90,17 @@ function openBudgetEditModal(categoryId, year, month) {
     bodyHtml: `
       <div class="field">
         <label>Hạn mức tháng ${month}/${year}</label>
-        <input id="budget-amount" type="number" min="0" step="1000" value="${current ?? ''}" placeholder="Để trống = không giới hạn"/>
+        <input id="budget-amount" type="text" inputmode="numeric" value="${current != null ? formatNumber(current) : ''}" placeholder="Để trống = không giới hạn"/>
         <div class="field-hint">Chỉ áp dụng cho tháng này. Muốn đổi hạn mức mặc định cho mọi tháng, sửa ở tab Danh mục.</div>
       </div>
     `,
     footHtml: `<button class="btn btn-primary btn-block" data-save>Lưu</button>`,
     onMount(sheet, closeFn) {
+      attachMoneyInput(sheet.querySelector('#budget-amount'));
       sheet.querySelector('[data-save]').addEventListener('click', async () => {
         const val = sheet.querySelector('#budget-amount').value;
         closeFn();
-        try { await S.setBudget(year, month, categoryId, val === '' ? null : val); toast('Đã lưu hạn mức', 'success'); }
+        try { await S.setBudget(year, month, categoryId, val === '' ? null : unformatMoney(val)); toast('Đã lưu hạn mức', 'success'); }
         catch (err) { toast(err.message || 'Có lỗi xảy ra', 'error'); }
       });
     },
@@ -164,7 +166,7 @@ function openCategoryFormModal(category) {
       </div>
       <div class="field">
         <label>Hạn mức mặc định hàng tháng</label>
-        <input id="cat-budget" type="number" min="0" step="1000" value="${category?.monthlyBudget ?? ''}" placeholder="Để trống = không giới hạn"/>
+        <input id="cat-budget" type="text" inputmode="numeric" value="${category?.monthlyBudget != null ? formatNumber(category.monthlyBudget) : ''}" placeholder="Để trống = không giới hạn"/>
       </div>
       <div class="field-error" id="cat-error" style="display:none;margin-bottom:10px"></div>
     `,
@@ -173,6 +175,7 @@ function openCategoryFormModal(category) {
       ${category ? `<button class="btn btn-danger-outline btn-block" data-del style="margin-top:8px">${icon('trash', 'icon-sm')} Xóa danh mục</button>` : ''}
     `,
     onMount(sheet, closeFn) {
+      attachMoneyInput(sheet.querySelector('#cat-budget'));
       sheet.querySelectorAll('[data-type]').forEach((btn) => {
         btn.addEventListener('click', () => {
           type = btn.dataset.type;
@@ -197,7 +200,7 @@ function openCategoryFormModal(category) {
         const errEl = sheet.querySelector('#cat-error');
         if (!name) { errEl.textContent = 'Cần nhập tên danh mục.'; errEl.style.display = 'block'; return; }
         try {
-          await S.upsertCategory({ id: category?.id, name, type, icon: selectedIcon, color: selectedColor, monthlyBudget: budget === '' ? null : budget });
+          await S.upsertCategory({ id: category?.id, name, type, icon: selectedIcon, color: selectedColor, monthlyBudget: budget === '' ? null : unformatMoney(budget) });
           toast('Đã lưu danh mục', 'success');
           closeFn();
         } catch (err) { errEl.textContent = err.message || 'Có lỗi xảy ra'; errEl.style.display = 'block'; }

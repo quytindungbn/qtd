@@ -4,7 +4,7 @@ import { pageHeader } from '../components/shell.js';
 import { openModal, confirmDialog } from '../components/modal.js';
 import { emptyState } from '../components/ui.js';
 import { toast } from '../components/toast.js';
-import { formatVND, formatDate } from '../utils.js';
+import { formatVND, formatDate, formatNumber, attachMoneyInput, unformatMoney } from '../utils.js';
 
 export function renderHeader(headerEl) {
   headerEl.innerHTML = pageHeader({ title: 'Tiết kiệm' });
@@ -48,15 +48,16 @@ function openContributeModal(g) {
     title: `Góp/rút — ${g.name}`,
     bodyHtml: `
       <p class="text-sm text-muted mb-16">Nhập số dương để góp thêm, số âm để rút bớt.</p>
-      <div class="field"><label>Số tiền</label><input id="contrib-amount" type="number" step="1000" placeholder="VD: 500000 hoặc -200000"/></div>
+      <div class="field"><label>Số tiền</label><input id="contrib-amount" type="text" inputmode="numeric" placeholder="VD: 500.000 hoặc -200.000"/></div>
     `,
     footHtml: `<button class="btn btn-primary btn-block" data-ok>Xác nhận</button>`,
     onMount(sheet, closeFn) {
+      attachMoneyInput(sheet.querySelector('#contrib-amount'), { allowNegative: true });
       sheet.querySelector('[data-ok]').addEventListener('click', async () => {
         const val = sheet.querySelector('#contrib-amount').value;
         closeFn();
         if (!val) return;
-        try { await S.contributeSavingsGoal(g.id, val); toast('Đã cập nhật', 'success'); }
+        try { await S.contributeSavingsGoal(g.id, unformatMoney(val)); toast('Đã cập nhật', 'success'); }
         catch (err) { toast(err.message || 'Có lỗi xảy ra', 'error'); }
       });
     },
@@ -68,7 +69,7 @@ function openGoalForm(g) {
     title: g ? 'Sửa mục tiêu' : 'Thêm mục tiêu tiết kiệm',
     bodyHtml: `
       <div class="field"><label>Tên mục tiêu</label><input id="goal-name" value="${g ? g.name.replace(/"/g, '&quot;') : ''}" required/></div>
-      <div class="field"><label>Số tiền mục tiêu</label><input id="goal-target" type="number" min="1" value="${g ? g.targetAmount : ''}" required/></div>
+      <div class="field"><label>Số tiền mục tiêu</label><input id="goal-target" type="text" inputmode="numeric" value="${g ? formatNumber(g.targetAmount) : ''}" required/></div>
       <div class="field"><label>Hạn hoàn thành</label><input id="goal-deadline" type="date" value="${g?.deadline || ''}"/></div>
       <div class="field"><label>Ghi chú</label><input id="goal-note" value="${g ? (g.note || '').replace(/"/g, '&quot;') : ''}"/></div>
       <div class="field-error" id="goal-error" style="display:none;margin-bottom:10px"></div>
@@ -78,9 +79,10 @@ function openGoalForm(g) {
       ${g ? `<button class="btn btn-danger-outline btn-block" data-del style="margin-top:8px">${icon('trash', 'icon-sm')} Xóa mục tiêu</button>` : ''}
     `,
     onMount(sheet, closeFn) {
+      attachMoneyInput(sheet.querySelector('#goal-target'));
       sheet.querySelector('[data-save]').addEventListener('click', async () => {
         const name = sheet.querySelector('#goal-name').value.trim();
-        const targetAmount = sheet.querySelector('#goal-target').value;
+        const targetAmount = unformatMoney(sheet.querySelector('#goal-target').value);
         const deadline = sheet.querySelector('#goal-deadline').value;
         const note = sheet.querySelector('#goal-note').value;
         const errEl = sheet.querySelector('#goal-error');

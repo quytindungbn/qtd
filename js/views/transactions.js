@@ -35,7 +35,7 @@ export function render(contentEl, filterEl) {
       </select>` : ''}
     </div>
     <div class="field" style="margin-bottom:12px">
-      <input id="f-search" placeholder="${icon('search', 'icon-sm')} Tìm theo ghi chú/danh mục..." value="${filters.q}"/>
+      <input id="f-search" placeholder="Tìm theo ghi chú/danh mục..." value="${filters.q}"/>
     </div>
   `;
   filterEl.querySelector('#f-type').addEventListener('change', (e) => { filters.type = e.target.value; renderList(contentEl); });

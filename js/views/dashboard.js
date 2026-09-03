@@ -46,7 +46,7 @@ export function render(contentEl) {
         <div class="stat-tile c-purple">
           <div class="stat-icon">${icon('chart', 'icon-sm')}</div>
           <div class="stat-label">Dự báo chi cuối tháng</div>
-          <div class="stat-value" style="font-size:15px">${formatVND(forecast)}</div>
+          <div class="stat-value" style="font-size:${forecast == null ? '12.5px' : '15px'}">${forecast == null ? 'Chưa đủ dữ liệu (từ ngày 3)' : formatVND(forecast)}</div>
         </div>
       </div>
     </div>
@@ -63,14 +63,14 @@ export function render(contentEl) {
 
     ${overBudget.length ? `
     <div class="card card-pad mb-16" style="background:var(--danger-bg);border-color:transparent">
-      <div class="flex items-center gap-8 mb-4" style="color:var(--danger)">${icon('alert', 'icon-sm')}<b class="text-sm">${overBudget.length} danh mục đã vượt ngân sách tháng này</b></div>
+      <div class="flex items-center gap-8 mb-4" style="color:var(--danger)">${icon('alert', 'icon-sm')}<b class="text-sm">${overBudget.length} danh mục đã vượt kế hoạch chi tiêu tháng này</b></div>
       ${overBudget.map((r) => `<div class="oc-line"><span>${r.category.name}</span><b style="color:var(--danger)">${formatVND(r.spent)} / ${formatVND(r.limit)}</b></div>`).join('')}
-      <a href="#/ngan-sach" class="link-more" style="display:inline-block;margin-top:8px">Xem ngân sách →</a>
+      <a href="#/ngan-sach" class="link-more" style="display:inline-block;margin-top:8px">Xem kế hoạch chi tiêu →</a>
     </div>` : ''}
 
     ${budgetRows.length ? `
     <div class="card card-pad mb-16">
-      <div class="section-head"><h2>Ngân sách theo danh mục</h2><a href="#/ngan-sach" class="link-more">Xem tất cả</a></div>
+      <div class="section-head"><h2>Kế hoạch chi tiêu theo danh mục</h2><a href="#/ngan-sach" class="link-more">Xem tất cả</a></div>
       ${budgetRows.slice(0, 5).map((r) => budgetRowHtml(r)).join('')}
     </div>` : ''}
 
@@ -81,7 +81,7 @@ export function render(contentEl) {
   `;
 
   if (!S.listCategories().length) {
-    contentEl.insertAdjacentHTML('afterbegin', `<div class="card card-pad mb-16">${emptyState({ iconName: 'wallet', title: 'Chưa có danh mục nào', message: 'Vào trang Ngân sách để tạo danh mục thu/chi trước khi bắt đầu ghi sổ.' })}</div>`);
+    contentEl.insertAdjacentHTML('afterbegin', `<div class="card card-pad mb-16">${emptyState({ iconName: 'wallet', title: 'Chưa có danh mục nào', message: 'Vào trang Kế hoạch chi tiêu để tạo danh mục thu/chi trước khi bắt đầu ghi sổ.' })}</div>`);
   }
 
   const fab = document.createElement('button');

@@ -4,7 +4,7 @@ import { pageHeader } from '../components/shell.js';
 import { openModal, confirmDialog } from '../components/modal.js';
 import { emptyState } from '../components/ui.js';
 import { toast } from '../components/toast.js';
-import { formatVND } from '../utils.js';
+import { formatVND, formatNumber, attachMoneyInput, unformatMoney } from '../utils.js';
 
 export function renderHeader(headerEl) {
   headerEl.innerHTML = pageHeader({ title: 'Định kỳ' });
@@ -67,13 +67,14 @@ function openConfirmModal(recurringId) {
     title: 'Xác nhận khoản định kỳ',
     bodyHtml: `
       <p class="text-sm text-muted mb-16">Tạo giao dịch cho tháng này — có thể sửa số tiền nếu tháng này khác thường.</p>
-      <div class="field"><label>Số tiền</label><input id="confirm-amount" type="number" min="1" value="${r.amount}"/></div>
+      <div class="field"><label>Số tiền</label><input id="confirm-amount" type="text" inputmode="numeric" value="${formatNumber(r.amount)}"/></div>
       <div class="field"><label>Ngày ghi sổ</label><input id="confirm-date" type="date" value="${new Date().toISOString().slice(0, 10)}"/></div>
     `,
     footHtml: `<button class="btn btn-primary btn-block" data-ok>Xác nhận & ghi sổ</button>`,
     onMount(sheet, closeFn) {
+      attachMoneyInput(sheet.querySelector('#confirm-amount'));
       sheet.querySelector('[data-ok]').addEventListener('click', async () => {
-        const amount = sheet.querySelector('#confirm-amount').value;
+        const amount = unformatMoney(sheet.querySelector('#confirm-amount').value);
         const date = sheet.querySelector('#confirm-date').value;
         closeFn();
         try { await S.confirmRecurring(recurringId, { amount, date }); toast('Đã ghi sổ', 'success'); }
@@ -95,7 +96,7 @@ function openRecurringForm(r) {
         <button type="button" data-type="expense" class="${type === 'expense' ? 'active' : ''}">Khoản chi</button>
         <button type="button" data-type="income" class="${type === 'income' ? 'active' : ''}">Khoản thu</button>
       </div>
-      <div class="field"><label>Số tiền</label><input id="rec-amount" type="number" min="1" value="${r ? r.amount : ''}" required/></div>
+      <div class="field"><label>Số tiền</label><input id="rec-amount" type="text" inputmode="numeric" value="${r ? formatNumber(r.amount) : ''}" required/></div>
       <div class="field"><label>Danh mục</label><select id="rec-cat">${catOptions()}</select></div>
       <div class="field"><label>Ngày trong tháng</label><input id="rec-day" type="number" min="1" max="28" value="${r ? r.dayOfMonth : 5}" required/><div class="field-hint">1-28, để tránh lỗi với tháng 2.</div></div>
       <div class="field"><label>Ghi chú</label><input id="rec-note" value="${r ? (r.note || '').replace(/"/g, '&quot;') : ''}"/></div>
@@ -106,6 +107,7 @@ function openRecurringForm(r) {
       ${r ? `<button class="btn btn-danger-outline btn-block" data-del style="margin-top:8px">${icon('trash', 'icon-sm')} Xóa</button>` : ''}
     `,
     onMount(sheet, closeFn) {
+      attachMoneyInput(sheet.querySelector('#rec-amount'));
       sheet.querySelectorAll('[data-type]').forEach((btn) => {
         btn.addEventListener('click', () => {
           type = btn.dataset.type;
@@ -115,7 +117,7 @@ function openRecurringForm(r) {
       });
       sheet.querySelector('[data-save]').addEventListener('click', async () => {
         const payload = {
-          type, amount: sheet.querySelector('#rec-amount').value, categoryId: sheet.querySelector('#rec-cat').value,
+          type, amount: unformatMoney(sheet.querySelector('#rec-amount').value), categoryId: sheet.querySelector('#rec-cat').value,
           dayOfMonth: sheet.querySelector('#rec-day').value, note: sheet.querySelector('#rec-note').value, active: true,
         };
         const errEl = sheet.querySelector('#rec-error');
