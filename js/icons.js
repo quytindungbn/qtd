@@ -16,6 +16,7 @@ const PATHS = {
   x: '<path d="m6 6 12 12M18 6 6 18"/>',
   chevronRight: '<path d="m9 6 6 6-6 6"/>',
   chevronDown: '<path d="m6 9 6 6 6-6"/>',
+  chevronUp: '<path d="m6 15 6-6 6 6"/>',
   chevronLeft: '<path d="m15 6-6 6 6 6"/>',
   arrowLeft: '<path d="M19 12H5M11 18l-6-6 6-6"/>',
   edit: '<path d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3Z"/><path d="m14 6 4 4"/>',

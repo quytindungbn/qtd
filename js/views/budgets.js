@@ -7,7 +7,7 @@ import { toast } from '../components/toast.js';
 import { formatVND, formatNumber, attachMoneyInput, unformatMoney } from '../utils.js';
 
 const MONTH_NAMES = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6','Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
-const PALETTE = ['#0f6f61', '#2f6fed', '#16a34a', '#d97706', '#db2777', '#7c3aed', '#0891b2', '#dc2626'];
+const PALETTE = ['#2563eb', '#2f6fed', '#16a34a', '#d97706', '#db2777', '#7c3aed', '#0891b2', '#dc2626'];
 
 let tab = 'budget';
 let cursor = new Date();
@@ -111,18 +111,26 @@ function renderCategoryTab(body) {
   const income = S.listCategories({ type: 'income' });
   body.innerHTML = `
     <div class="mb-16"><button class="btn btn-primary btn-block" id="btn-add-cat">${icon('plus', 'icon-sm')} Thêm danh mục</button></div>
+    <p class="text-sm text-faint mb-8">Bấm ${icon('chevronUp', 'icon-sm')}/${icon('chevronDown', 'icon-sm')} để đổi thứ tự hiển thị.</p>
     <div class="section-head"><h2>Khoản chi</h2></div>
-    ${expense.length ? `<div class="card mb-16">${expense.map((c) => categoryRowHtml(c)).join('')}</div>` : `<p class="text-sm text-muted mb-16">Chưa có danh mục chi nào.</p>`}
+    ${expense.length ? `<div class="card mb-16">${expense.map((c, i) => categoryRowHtml(c, i === 0, i === expense.length - 1)).join('')}</div>` : `<p class="text-sm text-muted mb-16">Chưa có danh mục chi nào.</p>`}
     <div class="section-head"><h2>Khoản thu</h2></div>
-    ${income.length ? `<div class="card">${income.map((c) => categoryRowHtml(c)).join('')}</div>` : `<p class="text-sm text-muted">Chưa có danh mục thu nào.</p>`}
+    ${income.length ? `<div class="card">${income.map((c, i) => categoryRowHtml(c, i === 0, i === income.length - 1)).join('')}</div>` : `<p class="text-sm text-muted">Chưa có danh mục thu nào.</p>`}
   `;
   body.querySelector('#btn-add-cat').addEventListener('click', () => openCategoryFormModal());
   body.querySelectorAll('[data-cat-edit]').forEach((row) => {
     row.addEventListener('click', () => openCategoryFormModal(S.getCategory(row.dataset.catEdit)));
   });
+  body.querySelectorAll('[data-move]').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      try { await S.moveCategory(btn.dataset.move, btn.dataset.dir); }
+      catch (err) { toast(err.message || 'Có lỗi xảy ra', 'error'); }
+    });
+  });
 }
 
-function categoryRowHtml(c) {
+function categoryRowHtml(c, isFirst, isLast) {
   return `
     <div class="list-row" data-cat-edit="${c.id}" style="cursor:pointer">
       <div class="cat-icon" style="background:${c.color}">${icon(c.icon, 'icon-sm')}</div>
@@ -130,7 +138,10 @@ function categoryRowHtml(c) {
         <div class="row-title">${c.name}</div>
         <div class="row-sub">${c.monthlyBudget != null ? `Mặc định ${formatVND(c.monthlyBudget)}/tháng` : 'Chưa đặt hạn mức mặc định'}</div>
       </div>
-      ${icon('chevronRight', 'icon-sm')}
+      <div class="flex items-center gap-4">
+        <button class="icon-btn" data-move="${c.id}" data-dir="up" ${isFirst ? 'disabled style="opacity:.3"' : ''}>${icon('chevronUp', 'icon-sm')}</button>
+        <button class="icon-btn" data-move="${c.id}" data-dir="down" ${isLast ? 'disabled style="opacity:.3"' : ''}>${icon('chevronDown', 'icon-sm')}</button>
+      </div>
     </div>`;
 }
 

@@ -6,6 +6,7 @@ import { formatVND, formatCompact } from '../utils.js';
 
 const MONTH_NAMES = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6','Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
 let cursor = new Date();
+let summaryYear = new Date().getFullYear();
 
 export function renderHeader(headerEl) {
   headerEl.innerHTML = pageHeader({ title: 'Báo cáo' });
@@ -22,13 +23,13 @@ export function render(contentEl) {
   const trend = S.last6MonthsTotals(cursor);
   const maxTrend = Math.max(1, ...trend.map((m) => Math.max(m.income, m.expense)));
 
-  // Tổng kết cả năm (đúng năm đang xem theo tháng ở trên) — cộng dồn số dư
-  // từng tháng thành lũy kế, để nhìn được cả năm tại 1 bảng thay vì bấm
-  // từng tháng riêng lẻ.
+  // Tổng kết cả năm — chọn năm RIÊNG (summaryYear), độc lập với tháng đang
+  // xem ở phần biểu đồ trên — cộng dồn số dư từng tháng thành lũy kế, để
+  // nhìn được cả năm tại 1 bảng thay vì bấm từng tháng riêng lẻ.
   let cumulative = 0;
   const yearRows = Array.from({ length: 12 }, (_, i) => {
     const m = i + 1;
-    const t = S.totalsForMonth(year, m);
+    const t = S.totalsForMonth(summaryYear, m);
     cumulative += t.balance;
     return { month: m, ...t, cumulative };
   });
@@ -84,13 +85,20 @@ export function render(contentEl) {
     </div>
 
     <div class="card card-pad mt-16">
-      <div class="section-head"><h2>Tổng kết theo tháng — năm ${year}</h2></div>
+      <div class="flex items-center justify-between mb-8">
+        <h2 style="font-size:15px;font-weight:700">Tổng kết theo tháng</h2>
+        <div class="flex items-center gap-4">
+          <button class="icon-btn" id="btn-prev-year">${icon('chevronLeft', 'icon-sm')}</button>
+          <b class="text-sm">${summaryYear}</b>
+          <button class="icon-btn" id="btn-next-year">${icon('chevronRight', 'icon-sm')}</button>
+        </div>
+      </div>
       <div class="data-table-wrap">
         <table class="data-table">
           <thead><tr><th>Tháng</th><th>Thu</th><th>Chi</th><th>Số dư</th><th>Lũy kế cả năm</th></tr></thead>
           <tbody>
             ${yearRows.map((r) => `
-              <tr class="${r.month === month ? 'current-month' : ''}">
+              <tr class="${summaryYear === year && r.month === month ? 'current-month' : ''}">
                 <td>Tháng ${r.month}</td>
                 <td style="color:var(--success)">${r.income ? formatVND(r.income) : '—'}</td>
                 <td style="color:var(--danger)">${r.expense ? formatVND(r.expense) : '—'}</td>
@@ -105,6 +113,8 @@ export function render(contentEl) {
 
   contentEl.querySelector('#btn-prev-month').addEventListener('click', () => { cursor = new Date(year, month - 2, 1); render(contentEl); });
   contentEl.querySelector('#btn-next-month').addEventListener('click', () => { cursor = new Date(year, month, 1); render(contentEl); });
+  contentEl.querySelector('#btn-prev-year').addEventListener('click', () => { summaryYear -= 1; render(contentEl); });
+  contentEl.querySelector('#btn-next-year').addEventListener('click', () => { summaryYear += 1; render(contentEl); });
 }
 
 /** Chuỗi conic-gradient CSS vẽ biểu đồ tròn (donut) thuần CSS, không cần thư viện chart nào. */

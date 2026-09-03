@@ -1,11 +1,14 @@
 import { icon } from '../icons.js';
 import { openModal } from './modal.js';
 
+// Thứ tự ở đây quyết định luôn 3 mục đầu hiện TRỰC TIẾP trên thanh menu dưới
+// di động (BOTTOM_NAV_MAX_DIRECT bên dưới) — mục nào muốn dễ thấy, xếp
+// trong 3 mục đầu; còn lại tự động gộp vào "Thêm".
 export const NAV = [
   { path: '#/', label: 'Tổng quan', shortLabel: 'Tổng quan', icon: 'chart' },
   { path: '#/giao-dich', label: 'Giao dịch', shortLabel: 'Giao dịch', icon: 'wallet' },
-  { path: '#/ngan-sach', label: 'Ngân sách', shortLabel: 'Ngân sách', icon: 'tag' },
   { path: '#/bao-cao', label: 'Báo cáo', shortLabel: 'Báo cáo', icon: 'trendingUp' },
+  { path: '#/ngan-sach', label: 'Ngân sách', shortLabel: 'Ngân sách', icon: 'tag' },
   { path: '#/dinh-ky', label: 'Định kỳ', shortLabel: 'Định kỳ', icon: 'refresh' },
   { path: '#/ke-hoach', label: 'Kế hoạch chi tiêu', shortLabel: 'Kế hoạch', icon: 'calendar' },
   { path: '#/tiet-kiem', label: 'Tiết kiệm', shortLabel: 'Tiết kiệm', icon: 'target' },

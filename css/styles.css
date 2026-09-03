@@ -1,23 +1,21 @@
 /* ============================================================
-   Cổng khách hàng Quỹ tín dụng — Design tokens & base styles
-   (bảng màu xanh rêu/teal riêng, không dùng thương hiệu của bất kỳ
-   ngân hàng/quỹ tín dụng thật nào — chỉ dùng cho bản demo)
+   Sổ Chi Tiêu — Design tokens & base styles (bảng màu xanh dương riêng)
    ============================================================ */
 
 :root {
-  --color-primary: #0f6f61;
-  --color-primary-dark: #0b5148;
-  --color-primary-light: #e3f3ef;
+  --color-primary: #2563eb;
+  --color-primary-dark: #1d4ed8;
+  --color-primary-light: #e2ecfd;
 
-  --bg: #f2f5f4;
+  --bg: #f2f4f8;
   --surface: #ffffff;
-  --surface-alt: #f7f9f8;
-  --border: #e5eae8;
-  --border-strong: #d6dedb;
+  --surface-alt: #f7f8fb;
+  --border: #e5e8ee;
+  --border-strong: #d6dbe4;
 
-  --text: #182320;
-  --text-muted: #667069;
-  --text-faint: #96a19b;
+  --text: #181c23;
+  --text-muted: #66707e;
+  --text-faint: #96a0ac;
 
   --success: #16a34a;
   --success-bg: #e3f8ea;
@@ -25,8 +23,8 @@
   --danger-bg: #fdeaea;
   --warning: #b5830a;
   --warning-bg: #fdf3df;
-  --info: #0f6f61;
-  --info-bg: #e3f3ef;
+  --info: #2563eb;
+  --info-bg: #e2ecfd;
   --purple: #7c3aed;
   --purple-bg: #efe8fd;
   --pink: #db2777;
@@ -99,7 +97,7 @@ svg { display: block; }
 }
 .sidebar-brand .logo-mark {
   width: 34px; height: 34px; border-radius: 10px;
-  background: linear-gradient(135deg, var(--color-primary), #6a9bff);
+  background: linear-gradient(135deg, var(--color-primary), #7fa8ff);
   display: flex; align-items: center; justify-content: center;
   color: #fff; font-weight: 700; font-size: 15px;
 }
@@ -506,7 +504,7 @@ svg { display: block; }
 
 .login-wrap {
   min-height: 100vh; display: flex; align-items: center; justify-content: center;
-  background: linear-gradient(160deg, #0f6f61 0%, #0a2e28 100%);
+  background: linear-gradient(160deg, #2563eb 0%, #0b1a3d 100%);
   padding: 20px;
 }
 .login-card {
@@ -515,6 +513,6 @@ svg { display: block; }
 }
 .login-card .logo-mark {
   width: 52px; height: 52px; border-radius: 14px; margin: 0 auto 14px;
-  background: linear-gradient(135deg, var(--color-primary), #22a68f);
+  background: linear-gradient(135deg, var(--color-primary), #60a5fa);
   display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 22px;
 }

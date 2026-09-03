@@ -141,7 +141,7 @@ function mapUserProfileRow(row) {
 }
 function mapCategoryRow(row) {
   return {
-    id: row.id, name: row.name, type: row.type, icon: row.icon || 'tag', color: row.color || '#0f6f61',
+    id: row.id, name: row.name, type: row.type, icon: row.icon || 'tag', color: row.color || '#2563eb',
     monthlyBudget: row.monthly_budget != null ? Number(row.monthly_budget) : null,
     sortOrder: row.sort_order || 0, active: row.active !== false,
   };
@@ -252,6 +252,25 @@ export async function deleteCategory(id) {
   if (error) throw new Error('Không xóa được danh mục, thử lại sau.');
   state.categories = state.categories.filter((c) => c.id !== id);
   state.budgets = state.budgets.filter((b) => b.categoryId !== id);
+  notify();
+}
+/** Đổi thứ tự hiển thị 1 danh mục — hoán đổi sort_order với danh mục liền kề CÙNG loại (thu/chi riêng). direction: 'up' | 'down'. */
+export async function moveCategory(id, direction) {
+  const cat = getCategory(id);
+  if (!cat) return;
+  const siblings = listCategories({ type: cat.type });
+  const idx = siblings.findIndex((c) => c.id === id);
+  const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+  if (swapIdx < 0 || swapIdx >= siblings.length) return;
+  const other = siblings[swapIdx];
+  const session = getSession();
+  const sb = getSupabaseClient(session?.sbToken);
+  const [{ error: err1 }, { error: err2 }] = await Promise.all([
+    sb.from('categories').update({ sort_order: other.sortOrder }).eq('id', cat.id),
+    sb.from('categories').update({ sort_order: cat.sortOrder }).eq('id', other.id),
+  ]);
+  if (err1 || err2) throw new Error('Không đổi được thứ tự, thử lại sau.');
+  const tmp = cat.sortOrder; cat.sortOrder = other.sortOrder; other.sortOrder = tmp;
   notify();
 }
 
