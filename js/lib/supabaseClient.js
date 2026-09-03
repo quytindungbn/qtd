@@ -11,8 +11,8 @@
 // đang để rỗng/placeholder vì đây là project MỚI, chưa từng tạo. ***
 import { createClient } from '@supabase/supabase-js';
 
-export const SUPABASE_URL = 'https://REPLACE-ME.supabase.co';
-export const SUPABASE_ANON_KEY = 'REPLACE-ME-anon-public-key';
+export const SUPABASE_URL = 'https://iswfooouxpzcijynvalv.supabase.co';
+export const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlzd2Zvb291eHB6Y2lqeW52YWx2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0NDA0NjgsImV4cCI6MjEwNDAxNjQ2OH0.FKcs3E2Y341ODpGZn7ooqEX5aV9ARQw1B6eKq1hReWU';
 
 // URL thật của Edge Function DUY NHẤT (gộp login + tự đổi mật khẩu + quản lý
 // thành viên vào chung 1 function cho đỡ phải deploy nhiều chỗ) — LƯU Ý tên
