@@ -42,7 +42,7 @@ function persist() {
 function emptyState() {
   return {
     settings: { householdName: 'Sổ chi tiêu của tôi', currency: 'đ' },
-    users: [], categories: [], transactions: [], budgets: [], recurring: [], savingsGoals: [], plans: [],
+    users: [], categories: [], transactions: [], budgets: [], recurring: [], savingsGoals: [], plans: [], debts: [], debtPayments: [],
     session: null,
   };
 }
@@ -108,7 +108,7 @@ export async function login(identifier, password) {
 
 async function loadSessionData(token) {
   const sb = getSupabaseClient(token);
-  const [{ data: userRows }, { data: catRows }, { data: txnRows }, { data: budgetRows }, { data: recRows }, { data: goalRows }, { data: planRows }] = await Promise.all([
+  const [{ data: userRows }, { data: catRows }, { data: txnRows }, { data: budgetRows }, { data: recRows }, { data: goalRows }, { data: planRows }, { data: debtRows }, { data: debtPayRows }] = await Promise.all([
     sb.from('user_profiles').select('*'),
     sb.from('categories').select('*').order('sort_order'),
     sb.from('transactions').select('*').order('txn_date', { ascending: false }),
@@ -116,6 +116,8 @@ async function loadSessionData(token) {
     sb.from('recurring_transactions').select('*'),
     sb.from('savings_goals').select('*'),
     sb.from('plans').select('*'),
+    sb.from('debts').select('*'),
+    sb.from('debt_payments').select('*').order('payment_date', { ascending: false }),
   ]);
   state.users = (userRows || []).map(mapUserProfileRow);
   state.categories = (catRows || []).map(mapCategoryRow);
@@ -124,6 +126,8 @@ async function loadSessionData(token) {
   state.recurring = (recRows || []).map(mapRecurringRow);
   state.savingsGoals = (goalRows || []).map(mapSavingsGoalRow);
   state.plans = (planRows || []).map(mapPlanRow);
+  state.debts = (debtRows || []).map(mapDebtRow);
+  state.debtPayments = (debtPayRows || []).map(mapDebtPaymentRow);
   if (state.categories.length === 0) await seedDefaultCategories(sb);
 }
 
@@ -172,6 +176,20 @@ function mapPlanRow(row) {
   return {
     id: row.id, type: row.type, amount: Number(row.amount), categoryId: row.category_id,
     title: row.title, dueDate: row.due_date, status: row.status,
+    transactionId: row.transaction_id, userId: row.user_id, createdAt: row.created_at,
+  };
+}
+function mapDebtRow(row) {
+  return {
+    id: row.id, name: row.name, creditor: row.creditor || '',
+    totalAmount: Number(row.total_amount), remainingAmount: Number(row.remaining_amount),
+    startDate: row.start_date, status: row.status, note: row.note || '',
+    userId: row.user_id, createdAt: row.created_at,
+  };
+}
+function mapDebtPaymentRow(row) {
+  return {
+    id: row.id, debtId: row.debt_id, amount: Number(row.amount), paymentDate: row.payment_date,
     transactionId: row.transaction_id, userId: row.user_id, createdAt: row.created_at,
   };
 }
@@ -568,12 +586,103 @@ export async function completePlan(id, { amount, date } = {}) {
 }
 
 // ------------------------------------------------------------
+// Quản lý nợ — khoản đang nợ (mua trả góp, vay mượn...): theo dõi dư nợ còn
+// lại, lịch sử trả nợ (debt_payments), mỗi lần trả tự tạo 1 giao dịch chi
+// tiêu thật (để không lệch tổng chi tiêu tháng) và liên kết lại qua
+// transactionId — giống hệt cơ chế completePlan() ở trên.
+// ------------------------------------------------------------
+export function listDebts(filters = {}) {
+  let list = state.debts;
+  if (filters.status) list = list.filter((d) => d.status === filters.status);
+  return list.slice().sort((a, b) => (b.startDate || '').localeCompare(a.startDate || ''));
+}
+export function getDebt(id) { return state.debts.find((d) => d.id === id); }
+/** Lịch sử trả nợ của 1 khoản nợ, mới nhất trước. */
+export function listDebtPayments(debtId) {
+  return state.debtPayments.filter((p) => p.debtId === debtId).sort((a, b) => b.paymentDate.localeCompare(a.paymentDate));
+}
+/** Tổng quan: tổng nợ gốc đã vay/mua và tổng dư nợ còn lại (mọi khoản, kể cả đã trả xong — lúc đó dư nợ = 0 nên không ảnh hưởng tổng). */
+export function debtsSummary() {
+  return state.debts.reduce((s, d) => ({ totalOriginal: s.totalOriginal + d.totalAmount, totalRemaining: s.totalRemaining + d.remainingAmount }), { totalOriginal: 0, totalRemaining: 0 });
+}
+
+export async function addDebt({ name, creditor, totalAmount, startDate, note }) {
+  const session = getSession();
+  const sb = getSupabaseClient(session?.sbToken);
+  const amount = Number(totalAmount) || 0;
+  const row = {
+    id: genId('debt'), name, creditor: creditor || null, total_amount: amount, remaining_amount: amount,
+    start_date: startDate || new Date().toISOString().slice(0, 10), status: 'active', note: note || '', user_id: session.id,
+  };
+  const { error } = await sb.from('debts').insert(row);
+  if (error) throw new Error('Không lưu được khoản nợ, thử lại sau.');
+  state.debts.push(mapDebtRow({ ...row, created_at: new Date().toISOString() }));
+  notify();
+}
+export async function updateDebt(id, { name, creditor, totalAmount, startDate, note }) {
+  const session = getSession();
+  const sb = getSupabaseClient(session?.sbToken);
+  const patch = {
+    name, creditor: creditor || null, total_amount: Number(totalAmount) || 0,
+    start_date: startDate, note: note || '',
+  };
+  const { error } = await sb.from('debts').update(patch).eq('id', id);
+  if (error) throw new Error('Không cập nhật được, thử lại sau.');
+  const d = getDebt(id);
+  if (d) Object.assign(d, {
+    name, creditor: patch.creditor || '', totalAmount: patch.total_amount, startDate: patch.start_date, note: patch.note,
+  });
+  notify();
+}
+export async function deleteDebt(id) {
+  const session = getSession();
+  const sb = getSupabaseClient(session?.sbToken);
+  const { error } = await sb.from('debts').delete().eq('id', id);
+  if (error) throw new Error('Không xóa được, thử lại sau.');
+  state.debts = state.debts.filter((d) => d.id !== id);
+  state.debtPayments = state.debtPayments.filter((p) => p.debtId !== id);
+  notify();
+}
+/** Trả nợ (1 phần hoặc hết) — tự tạo giao dịch chi tiêu thật + ghi lịch sử trả nợ + giảm dư nợ, tự chuyển sang 'paid' nếu hết nợ. */
+export async function payDebt(id, { amount, date, categoryId }) {
+  const d = getDebt(id);
+  if (!d) throw new Error('Không tìm thấy khoản nợ.');
+  const session = getSession();
+  const sb = getSupabaseClient(session?.sbToken);
+  const payAmount = Number(amount) || 0;
+  if (payAmount <= 0) throw new Error('Số tiền trả phải lớn hơn 0.');
+  const payDate = date || new Date().toISOString().slice(0, 10);
+
+  const txnRow = {
+    id: genId('txn'), type: 'expense', amount: payAmount, category_id: categoryId || null,
+    note: `Trả nợ: ${d.name}`, txn_date: payDate, user_id: session.id, recurring_id: null,
+  };
+  const { error: txnErr } = await sb.from('transactions').insert(txnRow);
+  if (txnErr) throw new Error('Không tạo được giao dịch, thử lại sau.');
+
+  const newRemaining = Math.max(0, d.remainingAmount - payAmount);
+  const newStatus = newRemaining <= 0 ? 'paid' : 'active';
+  const { error: debtErr } = await sb.from('debts').update({ remaining_amount: newRemaining, status: newStatus }).eq('id', id);
+  if (debtErr) throw new Error('Đã tạo giao dịch nhưng chưa cập nhật được dư nợ, thử lại sau.');
+
+  const payRow = { id: genId('debtpay'), debt_id: id, amount: payAmount, payment_date: payDate, transaction_id: txnRow.id, user_id: session.id };
+  const { error: payErr } = await sb.from('debt_payments').insert(payRow);
+  if (payErr) throw new Error('Đã trừ dư nợ nhưng chưa lưu được lịch sử trả nợ, thử lại sau.');
+
+  state.transactions.unshift(mapTransactionRow({ ...txnRow, created_at: new Date().toISOString() }));
+  state.debtPayments.unshift(mapDebtPaymentRow({ ...payRow, created_at: new Date().toISOString() }));
+  d.remainingAmount = newRemaining;
+  d.status = newStatus;
+  notify();
+}
+
+// ------------------------------------------------------------
 // Session (đăng nhập hiện tại)
 // ------------------------------------------------------------
 export function getSession() { return state.session; }
 export function setSession(session) { state.session = session; notify(); }
 export function logout() {
   state.session = null;
-  state.users = []; state.categories = []; state.transactions = []; state.budgets = []; state.recurring = []; state.savingsGoals = []; state.plans = [];
+  state.users = []; state.categories = []; state.transactions = []; state.budgets = []; state.recurring = []; state.savingsGoals = []; state.plans = []; state.debts = []; state.debtPayments = [];
   notify();
 }

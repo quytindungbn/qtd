@@ -62,6 +62,7 @@ const PATHS = {
   trendingUp: '<path d="M3 17 10 10l4 4 7-7"/><path d="M15 6h6v6"/>',
   trendingDown: '<path d="M3 7l7 7 4-4 7 7"/><path d="M15 18h6v-6"/>',
   target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2"/>',
+  creditCard: '<rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M2.5 9.5h19"/><path d="M6 15h4"/>',
 };
 
 /** Trả về chuỗi SVG icon theo tên. `extraCls` bổ sung thêm (vd: 'icon-sm', 'icon-lg'). */

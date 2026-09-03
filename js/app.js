@@ -10,6 +10,7 @@ import * as Budgets from './views/budgets.js';
 import * as Reports from './views/reports.js';
 import * as Recurring from './views/recurring.js';
 import * as Plans from './views/plans.js';
+import * as Debts from './views/debts.js';
 import * as Savings from './views/savings.js';
 import * as Users from './views/users.js';
 import * as Settings from './views/settings.js';
@@ -22,6 +23,7 @@ const ROUTES = [
   { re: /^#\/bao-cao$/, view: Reports },
   { re: /^#\/dinh-ky$/, view: Recurring },
   { re: /^#\/ke-hoach$/, view: Plans },
+  { re: /^#\/no$/, view: Debts },
   { re: /^#\/tiet-kiem$/, view: Savings },
   { re: /^#\/nguoi-dung$/, view: Users, ownerOnly: true },
   { re: /^#\/cai-dat$/, view: Settings, ownerOnly: true },

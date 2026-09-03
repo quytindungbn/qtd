@@ -115,6 +115,31 @@ create table plans (
   created_at timestamptz default now()
 );
 
+-- Quản lý nợ (vd nợ mua sắm trả góp, vay mượn) — dư nợ giảm dần mỗi lần trả,
+-- mỗi lần trả tự tạo 1 giao dịch chi tiêu thật (xem debt_payments.transaction_id)
+-- để không bị lệch tổng chi tiêu tháng.
+create table debts (
+  id text primary key,
+  name text not null,
+  creditor text, -- vay/mua của ai (không bắt buộc)
+  total_amount numeric not null,
+  remaining_amount numeric not null,
+  start_date date not null default current_date,
+  status text not null default 'active' check (status in ('active','paid')),
+  note text,
+  user_id text references users(id) on delete set null,
+  created_at timestamptz default now()
+);
+create table debt_payments (
+  id text primary key,
+  debt_id text not null references debts(id) on delete cascade,
+  amount numeric not null,
+  payment_date date not null,
+  transaction_id text references transactions(id) on delete set null,
+  user_id text references users(id) on delete set null,
+  created_at timestamptz default now()
+);
+
 create table app_settings (
   id text primary key default 'main',
   household_name text not null default 'Sổ chi tiêu của tôi',
@@ -128,6 +153,8 @@ create index on transactions (user_id);
 create index on budgets (year, month);
 create index on plans (status);
 create index on plans (due_date);
+create index on debts (status);
+create index on debt_payments (debt_id);
 ```
 
 ## 3. Row Level Security + quyền bảng
@@ -140,6 +167,8 @@ alter table transactions enable row level security;
 alter table budgets enable row level security;
 alter table savings_goals enable row level security;
 alter table plans enable row level security;
+alter table debts enable row level security;
+alter table debt_payments enable row level security;
 alter table app_settings enable row level security;
 
 grant usage on schema public to anon, authenticated, service_role;
@@ -149,7 +178,7 @@ grant usage on schema public to anon, authenticated, service_role;
 grant select, insert, update, delete on users to service_role;
 grant select on user_profiles to anon, authenticated;
 
-grant select, insert, update, delete on categories, recurring_transactions, transactions, budgets, savings_goals, plans
+grant select, insert, update, delete on categories, recurring_transactions, transactions, budgets, savings_goals, plans, debts, debt_payments
   to authenticated, service_role;
 grant select on app_settings to anon, authenticated;
 grant update on app_settings to authenticated, service_role;
@@ -172,6 +201,12 @@ create policy "authenticated full access savings" on savings_goals
   for all using ((auth.jwt() ->> 'app_role') in ('owner','member'))
   with check ((auth.jwt() ->> 'app_role') in ('owner','member'));
 create policy "authenticated full access plans" on plans
+  for all using ((auth.jwt() ->> 'app_role') in ('owner','member'))
+  with check ((auth.jwt() ->> 'app_role') in ('owner','member'));
+create policy "authenticated full access debts" on debts
+  for all using ((auth.jwt() ->> 'app_role') in ('owner','member'))
+  with check ((auth.jwt() ->> 'app_role') in ('owner','member'));
+create policy "authenticated full access debt_payments" on debt_payments
   for all using ((auth.jwt() ->> 'app_role') in ('owner','member'))
   with check ((auth.jwt() ->> 'app_role') in ('owner','member'));
 
@@ -243,7 +278,47 @@ create policy "authenticated full access plans" on plans
 Sau đó cần **deploy lại Edge Function** với code mới nhất (không đổi gì về SQL/JWT, chỉ để chắc
 chắn code khớp bản mới nhất — xem lại mục 4).
 
-## 8. Việc còn lại
+## 8. Bổ sung sau: bảng "Quản lý nợ" (nếu project đã tạo trước khi có mục này)
+
+Chạy đúng đoạn SQL sau trong **SQL Editor** (không ảnh hưởng gì tới dữ liệu đã có):
+
+```sql
+create table debts (
+  id text primary key,
+  name text not null,
+  creditor text,
+  total_amount numeric not null,
+  remaining_amount numeric not null,
+  start_date date not null default current_date,
+  status text not null default 'active' check (status in ('active','paid')),
+  note text,
+  user_id text references users(id) on delete set null,
+  created_at timestamptz default now()
+);
+create table debt_payments (
+  id text primary key,
+  debt_id text not null references debts(id) on delete cascade,
+  amount numeric not null,
+  payment_date date not null,
+  transaction_id text references transactions(id) on delete set null,
+  user_id text references users(id) on delete set null,
+  created_at timestamptz default now()
+);
+create index on debts (status);
+create index on debt_payments (debt_id);
+
+alter table debts enable row level security;
+alter table debt_payments enable row level security;
+grant select, insert, update, delete on debts, debt_payments to authenticated, service_role;
+create policy "authenticated full access debts" on debts
+  for all using ((auth.jwt() ->> 'app_role') in ('owner','member'))
+  with check ((auth.jwt() ->> 'app_role') in ('owner','member'));
+create policy "authenticated full access debt_payments" on debt_payments
+  for all using ((auth.jwt() ->> 'app_role') in ('owner','member'))
+  with check ((auth.jwt() ->> 'app_role') in ('owner','member'));
+```
+
+## 9. Việc còn lại
 
 - [ ] Đổi mật khẩu owner ngay sau lần đăng nhập đầu tiên (app tự bắt đổi).
 - [ ] Rà soát dữ liệu chi tiêu thật trước khi coi là "đang dùng thật".
