@@ -265,27 +265,32 @@ function openPayModal(c, balance) {
 }
 
 /** Gợi ý tên chủ nợ đã dùng qua (kể cả đã "đã trả hết" — vẫn giữ tên để chọn lại lần sau), chỉ hiện
- * TÊN cho gọn, không hiện số tiền. Gõ tên mới hoàn toàn thì cứ gõ, không cần chọn gì. */
-function bindCreditorNameSuggestions(sheet, inputId, listId) {
+ * TÊN cho gọn, không hiện số tiền. CHỈ xổ ra khi bấm nút mũi tên bên cạnh (không tự bung lúc gõ, đỡ
+ * dài dòng) — gõ tên mới hoàn toàn thì cứ gõ, không cần bấm gì. */
+function bindCreditorNameSuggestions(sheet, inputId, listId, toggleId) {
   const input = sheet.querySelector(`#${inputId}`);
   const list = sheet.querySelector(`#${listId}`);
+  const toggle = sheet.querySelector(`#${toggleId}`);
   const allNames = S.listCreditorNames();
   function render() {
     const q = input.value.trim().toLowerCase();
     const matches = q ? allNames.filter((n) => n.toLowerCase().includes(q) && n.toLowerCase() !== q) : allNames;
-    if (!matches.length) { list.style.display = 'none'; list.innerHTML = ''; return; }
-    list.innerHTML = matches.map((n) => `<div data-name="${n.replace(/"/g, '&quot;')}" style="padding:8px 12px;cursor:pointer;font-size:14px;border-bottom:1px solid var(--border)">${n}</div>`).join('');
-    list.style.display = '';
+    list.innerHTML = matches.length
+      ? matches.map((n) => `<div data-name="${n.replace(/"/g, '&quot;')}" style="padding:8px 12px;cursor:pointer;font-size:14px;border-bottom:1px solid var(--border)">${n}</div>`).join('')
+      : `<div style="padding:8px 12px;font-size:14px;color:var(--text-muted)">Chưa có tên nào</div>`;
   }
-  input.addEventListener('focus', render);
-  input.addEventListener('input', render);
-  input.addEventListener('blur', () => setTimeout(() => { list.style.display = 'none'; }, 150));
+  function close() { list.style.display = 'none'; }
+  function open() { render(); list.style.display = ''; }
+  toggle.addEventListener('mousedown', (e) => e.preventDefault());
+  toggle.addEventListener('click', () => { if (list.style.display === 'none') open(); else close(); });
+  input.addEventListener('input', () => { if (list.style.display !== 'none') render(); });
+  input.addEventListener('blur', () => setTimeout(close, 150));
   list.addEventListener('mousedown', (e) => e.preventDefault());
   list.addEventListener('click', (e) => {
     const item = e.target.closest('[data-name]');
     if (!item) return;
     input.value = item.dataset.name;
-    list.style.display = 'none';
+    close();
   });
 }
 
@@ -296,8 +301,13 @@ function openChargeForm({ creditorId, creditorName } = {}) {
     bodyHtml: `
       <div class="field" style="position:relative">
         <label>Chủ nợ</label>
-        <input id="charge-creditor-name" value="${locked ? creditorName.replace(/"/g, '&quot;') : ''}" placeholder="VD: Tạp hóa A" ${locked ? 'readonly' : ''} autocomplete="off"/>
-        ${locked ? '' : `<div id="charge-creditor-list" style="display:none;position:absolute;left:0;right:0;z-index:5;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-top:4px;max-height:160px;overflow-y:auto"></div>`}
+        ${locked
+          ? `<input id="charge-creditor-name" value="${creditorName.replace(/"/g, '&quot;')}" readonly/>`
+          : `<div class="flex items-center gap-8">
+              <input id="charge-creditor-name" placeholder="VD: Tạp hóa A" autocomplete="off" style="flex:1"/>
+              <button type="button" class="icon-btn" id="charge-creditor-toggle" aria-label="Chọn tên đã dùng">${icon('chevronDown', 'icon-sm')}</button>
+            </div>
+            <div id="charge-creditor-list" style="display:none;position:absolute;left:0;right:0;z-index:5;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-top:4px;max-height:160px;overflow-y:auto"></div>`}
       </div>
       <div class="field"><label>Ngày mua nợ</label><input id="charge-date" type="date" value="${new Date().toISOString().slice(0, 10)}" required/></div>
       <div class="field"><label>Mua gì (không bắt buộc)</label><input id="charge-desc" placeholder="VD: gạo, mắm, dầu ăn"/></div>
@@ -309,7 +319,7 @@ function openChargeForm({ creditorId, creditorName } = {}) {
     onMount(sheet, closeFn) {
       attachMoneyInput(sheet.querySelector('#charge-amount'));
       bindAddToTxnToggle(sheet, 'charge');
-      if (!locked) bindCreditorNameSuggestions(sheet, 'charge-creditor-name', 'charge-creditor-list');
+      if (!locked) bindCreditorNameSuggestions(sheet, 'charge-creditor-name', 'charge-creditor-list', 'charge-creditor-toggle');
       sheet.querySelector('[data-save]').addEventListener('click', async () => {
         const creditorNameVal = locked ? creditorName : sheet.querySelector('#charge-creditor-name').value.trim();
         const date = sheet.querySelector('#charge-date').value;
