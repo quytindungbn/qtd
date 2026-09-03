@@ -203,12 +203,14 @@ create policy "authenticated full access savings" on savings_goals
 create policy "authenticated full access plans" on plans
   for all using ((auth.jwt() ->> 'app_role') in ('owner','member'))
   with check ((auth.jwt() ->> 'app_role') in ('owner','member'));
-create policy "authenticated full access debts" on debts
-  for all using ((auth.jwt() ->> 'app_role') in ('owner','member'))
-  with check ((auth.jwt() ->> 'app_role') in ('owner','member'));
-create policy "authenticated full access debt_payments" on debt_payments
-  for all using ((auth.jwt() ->> 'app_role') in ('owner','member'))
-  with check ((auth.jwt() ->> 'app_role') in ('owner','member'));
+-- Quản lý nợ RIÊNG của từng người dùng (không chia sẻ như các bảng trên) —
+-- mỗi người chỉ xem/sửa được đúng khoản nợ do mình tạo (kể cả owner).
+create policy "own debts only" on debts
+  for all using ((auth.jwt() ->> 'row_id') = user_id)
+  with check ((auth.jwt() ->> 'row_id') = user_id);
+create policy "own debt_payments only" on debt_payments
+  for all using ((auth.jwt() ->> 'row_id') = user_id)
+  with check ((auth.jwt() ->> 'row_id') = user_id);
 
 -- app_settings: ai cũng xem được (tên sổ hiện ở màn đăng nhập, chưa cần đăng
 -- nhập cũng phải thấy), chỉ owner sửa được.
@@ -310,12 +312,28 @@ create index on debt_payments (debt_id);
 alter table debts enable row level security;
 alter table debt_payments enable row level security;
 grant select, insert, update, delete on debts, debt_payments to authenticated, service_role;
-create policy "authenticated full access debts" on debts
-  for all using ((auth.jwt() ->> 'app_role') in ('owner','member'))
-  with check ((auth.jwt() ->> 'app_role') in ('owner','member'));
-create policy "authenticated full access debt_payments" on debt_payments
-  for all using ((auth.jwt() ->> 'app_role') in ('owner','member'))
-  with check ((auth.jwt() ->> 'app_role') in ('owner','member'));
+-- Riêng của từng người dùng, không chia sẻ như các bảng khác — mỗi người chỉ
+-- xem/sửa được đúng khoản nợ do mình tạo (kể cả owner).
+create policy "own debts only" on debts
+  for all using ((auth.jwt() ->> 'row_id') = user_id)
+  with check ((auth.jwt() ->> 'row_id') = user_id);
+create policy "own debt_payments only" on debt_payments
+  for all using ((auth.jwt() ->> 'row_id') = user_id)
+  with check ((auth.jwt() ->> 'row_id') = user_id);
+```
+
+Nếu project của bạn đã chạy đoạn SQL debts/debt_payments cũ (dùng chung cho cả nhà) từ
+trước, đổi sang riêng-tư bằng cách chạy thêm:
+
+```sql
+drop policy if exists "authenticated full access debts" on debts;
+drop policy if exists "authenticated full access debt_payments" on debt_payments;
+create policy "own debts only" on debts
+  for all using ((auth.jwt() ->> 'row_id') = user_id)
+  with check ((auth.jwt() ->> 'row_id') = user_id);
+create policy "own debt_payments only" on debt_payments
+  for all using ((auth.jwt() ->> 'row_id') = user_id)
+  with check ((auth.jwt() ->> 'row_id') = user_id);
 ```
 
 ## 9. Việc còn lại

@@ -22,7 +22,6 @@ export function render(contentEl) {
   const overBudget = budgetRows.filter((r) => r.over);
   const reminders = S.pendingRecurringReminders(now);
   const plans = S.upcomingPlans(now);
-  const debtsSummary = S.debtsSummary();
   const recent = S.listTransactions({}).slice(0, 6);
 
   contentEl.innerHTML = `
@@ -68,15 +67,6 @@ export function render(contentEl) {
       <div class="flex items-center gap-8 mb-8" style="color:var(--color-primary-dark)">${icon('calendar', 'icon-sm')}<b class="text-sm">${plans.length} kế hoạch chi tiêu sắp tới/quá hạn</b></div>
       ${plans.map((p) => `<div class="oc-line"><span>${p.title} (${formatDate(p.dueDate)})</span><b>${p.type === 'expense' ? '-' : '+'}${formatVND(p.amount)}</b></div>`).join('')}
       <a href="#/ke-hoach" class="link-more" style="display:inline-block;margin-top:8px">Xem & đánh dấu hoàn thành →</a>
-    </div>` : ''}
-
-    ${debtsSummary.totalRemaining > 0 ? `
-    <div class="card card-pad mb-16" style="background:var(--danger-bg);border-color:transparent">
-      <div class="flex items-center justify-between" style="color:var(--danger)">
-        <div class="flex items-center gap-8">${icon('creditCard', 'icon-sm')}<b class="text-sm">Còn nợ</b></div>
-        <b class="text-sm">${formatVND(debtsSummary.totalRemaining)}</b>
-      </div>
-      <a href="#/no" class="link-more" style="display:inline-block;margin-top:8px">Xem & trả nợ →</a>
     </div>` : ''}
 
     ${overBudget.length ? `
