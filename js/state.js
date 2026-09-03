@@ -786,14 +786,19 @@ export async function updateCreditor(id, { name, note }) {
   if (c) Object.assign(c, patch);
   notify();
 }
-/** Xóa hẳn 1 chủ nợ + toàn bộ sổ nợ (cascade ở DB) — KHÔNG xóa các giao dịch chi tiêu thật đã trả trước đó. */
-export async function deleteCreditor(id) {
+/** Xóa HẲN mọi sổ nợ (mọi chu kỳ, kể cả đang nợ lẫn đã trả hết) mang tên này — dùng để dọn 1 tên
+ * khỏi gợi ý chủ nợ (VD tên gõ nhầm lúc test). KHÔNG xóa các giao dịch chi tiêu thật đã trả trước đó. */
+export async function deleteCreditorsByName(name) {
+  const key = (name || '').trim().toLowerCase();
+  const matches = state.creditors.filter((c) => c.name.trim().toLowerCase() === key);
+  if (!matches.length) return;
   const session = getSession();
   const sb = getSupabaseClient(session?.sbToken);
-  const { error } = await sb.from('creditors').delete().eq('id', id);
+  const ids = matches.map((c) => c.id);
+  const { error } = await sb.from('creditors').delete().in('id', ids);
   if (error) throw new Error('Không xóa được, thử lại sau.');
-  state.creditors = state.creditors.filter((c) => c.id !== id);
-  state.debtEntries = state.debtEntries.filter((e) => e.creditorId !== id);
+  state.creditors = state.creditors.filter((c) => !ids.includes(c.id));
+  state.debtEntries = state.debtEntries.filter((e) => !ids.includes(e.creditorId));
   notify();
 }
 

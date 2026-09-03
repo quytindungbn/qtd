@@ -87,22 +87,11 @@ function openCreditorDetail(creditorId) {
       <button class="btn btn-primary btn-block" data-charge>${icon('plus', 'icon-sm')} Ghi nợ thêm</button>
       <button class="btn btn-outline btn-block" data-pay style="margin-top:8px">${icon('check', 'icon-sm')} Trả nợ</button>
       <button class="btn btn-outline btn-block" data-rename style="margin-top:8px">${icon('edit', 'icon-sm')} Đổi tên chủ nợ</button>
-      <button class="btn btn-danger-outline btn-block" data-del style="margin-top:8px">${icon('trash', 'icon-sm')} Xóa chủ nợ này</button>
     `,
     onMount(sheet, closeFn) {
       sheet.querySelector('[data-charge]').addEventListener('click', () => { closeFn(); openChargeForm({ creditorId: c.id, creditorName: c.name }); });
       sheet.querySelector('[data-pay]').addEventListener('click', () => { closeFn(); openPayModal(c, balance); });
       sheet.querySelector('[data-rename]').addEventListener('click', () => { closeFn(); openRenameModal(c); });
-      sheet.querySelector('[data-del]').addEventListener('click', () => {
-        closeFn();
-        confirmDialog({
-          title: 'Xóa chủ nợ này?', message: `Xóa toàn bộ sổ nợ của "${c.name}". Các giao dịch chi tiêu đã ghi khi trả nợ trước đó vẫn được giữ nguyên. Không thể hoàn tác.`, confirmLabel: 'Xóa', danger: true,
-          onConfirm: async () => {
-            try { await S.deleteCreditor(c.id); toast('Đã xóa chủ nợ', 'success'); }
-            catch (err) { toast(err.message || 'Có lỗi xảy ra', 'error'); }
-          },
-        });
-      });
       sheet.querySelectorAll('[data-entry]').forEach((row) => {
         row.addEventListener('click', () => { closeFn(); openEntryActions(entries.find((e) => e.id === row.dataset.entry), c); });
       });
@@ -271,12 +260,21 @@ function bindCreditorNameSuggestions(sheet, inputId, listId, toggleId) {
   const input = sheet.querySelector(`#${inputId}`);
   const list = sheet.querySelector(`#${listId}`);
   const toggle = sheet.querySelector(`#${toggleId}`);
-  const allNames = S.listCreditorNames();
   function render() {
+    // Đọc lại S.listCreditorNames() mỗi lần render (không lưu 1 lần) để danh sách cập nhật ngay
+    // sau khi xóa 1 tên, không cần đóng/mở lại.
+    const allNames = S.listCreditorNames();
     const q = input.value.trim().toLowerCase();
     const matches = q ? allNames.filter((n) => n.toLowerCase().includes(q) && n.toLowerCase() !== q) : allNames;
     list.innerHTML = matches.length
-      ? matches.map((n) => `<div data-name="${n.replace(/"/g, '&quot;')}" style="padding:8px 12px;cursor:pointer;font-size:14px;border-bottom:1px solid var(--border)">${n}</div>`).join('')
+      ? matches.map((n) => {
+          const esc = n.replace(/"/g, '&quot;');
+          return `
+            <div style="display:flex;align-items:center;border-bottom:1px solid var(--border)">
+              <span data-name="${esc}" style="flex:1;padding:8px 12px;cursor:pointer;font-size:14px">${n}</span>
+              <button type="button" data-del-name="${esc}" aria-label="Xóa tên ${esc}" style="padding:8px 12px;background:none;border:none;color:var(--text-muted);cursor:pointer">${icon('x', 'icon-sm')}</button>
+            </div>`;
+        }).join('')
       : `<div style="padding:8px 12px;font-size:14px;color:var(--text-muted)">Chưa có tên nào</div>`;
   }
   function close() { list.style.display = 'none'; }
@@ -287,6 +285,23 @@ function bindCreditorNameSuggestions(sheet, inputId, listId, toggleId) {
   input.addEventListener('blur', () => setTimeout(close, 150));
   list.addEventListener('mousedown', (e) => e.preventDefault());
   list.addEventListener('click', (e) => {
+    const delBtn = e.target.closest('[data-del-name]');
+    if (delBtn) {
+      const name = delBtn.dataset.delName;
+      const matches = S.listCreditors().filter((c) => c.name.trim().toLowerCase() === name.trim().toLowerCase());
+      const owing = matches.filter((c) => c.balance > 0).reduce((s, c) => s + c.balance, 0);
+      const warn = owing > 0 ? ` Trong đó có sổ đang còn nợ ${formatVND(owing)} — xóa sẽ MẤT LUÔN sổ đang mở này.` : '';
+      confirmDialog({
+        title: 'Xóa tên chủ nợ này?',
+        message: `Xóa toàn bộ lịch sử/sổ nợ mang tên "${name}" khỏi gợi ý.${warn} Các giao dịch chi tiêu đã ghi khi trả nợ trước đó vẫn được giữ nguyên. Không thể hoàn tác.`,
+        confirmLabel: 'Xóa', danger: true,
+        onConfirm: async () => {
+          try { await S.deleteCreditorsByName(name); toast('Đã xóa tên chủ nợ', 'success'); render(); }
+          catch (err) { toast(err.message || 'Có lỗi xảy ra', 'error'); }
+        },
+      });
+      return;
+    }
     const item = e.target.closest('[data-name]');
     if (!item) return;
     input.value = item.dataset.name;
