@@ -618,12 +618,14 @@ export function totalDebtRemaining() {
   return state.creditors.reduce((s, c) => s + Math.max(0, creditorBalance(c.id)), 0);
 }
 
-function findCreditorByName(name) {
+/** Chỉ tìm chủ nợ CÒN ĐANG NỢ (balance > 0) theo tên — chủ nợ đã "đã trả hết" không tính, để lần
+ * ghi nợ mới cùng tên KHÔNG bị chồng vào sổ cũ đã đóng, mà tự mở 1 sổ nợ mới (cùng tên, id khác). */
+function findOpenCreditorByName(name) {
   const key = name.trim().toLowerCase();
-  return state.creditors.find((c) => c.name.trim().toLowerCase() === key);
+  return state.creditors.find((c) => c.name.trim().toLowerCase() === key && creditorBalance(c.id) > 0);
 }
 async function ensureCreditor(name, sb, session) {
-  const existing = findCreditorByName(name);
+  const existing = findOpenCreditorByName(name);
   if (existing) return existing;
   const row = { id: genId('creditor'), name: name.trim(), note: '', user_id: session.id };
   const { error } = await sb.from('creditors').insert(row);
@@ -632,16 +634,26 @@ async function ensureCreditor(name, sb, session) {
   state.creditors.push(c);
   return c;
 }
-/** Ghi nợ mới — tự tìm chủ nợ theo tên (không phân biệt hoa/thường), chưa có thì tự tạo. Mặc định KHÔNG đụng thu/chi thật; chỉ tạo giao dịch chi khi addToTransactions=true (người dùng tự tích chọn). */
-export async function addDebtCharge({ creditorName, amount, date, description, categoryId, addToTransactions }) {
+/** Ghi nợ mới. Truyền creditorId khi đã biết đúng chủ nợ (VD đang ở trang chi tiết 1 chủ nợ) — dùng
+ * đúng sổ đó dù đang nợ hay đã trả hết. Truyền creditorName để tự tìm chủ nợ CÒN ĐANG NỢ theo tên
+ * (không phân biệt hoa/thường); nếu chưa có ai đang nợ tên đó thì tự mở 1 sổ nợ MỚI (không chồng vào
+ * sổ cũ đã trả hết, kể cả trùng tên). Mặc định KHÔNG đụng thu/chi thật; chỉ tạo giao dịch chi khi
+ * addToTransactions=true (người dùng tự tích chọn). */
+export async function addDebtCharge({ creditorId, creditorName, amount, date, description, categoryId, addToTransactions }) {
   const session = getSession();
   const sb = getSupabaseClient(session?.sbToken);
-  const name = (creditorName || '').trim();
-  if (!name) throw new Error('Cần nhập tên chủ nợ.');
   const chargeAmount = Number(amount) || 0;
   if (chargeAmount <= 0) throw new Error('Số tiền nợ phải lớn hơn 0.');
   const entryDate = date || new Date().toISOString().slice(0, 10);
-  const creditor = await ensureCreditor(name, sb, session);
+  let creditor;
+  if (creditorId) {
+    creditor = getCreditor(creditorId);
+    if (!creditor) throw new Error('Không tìm thấy chủ nợ.');
+  } else {
+    const name = (creditorName || '').trim();
+    if (!name) throw new Error('Cần nhập tên chủ nợ.');
+    creditor = await ensureCreditor(name, sb, session);
+  }
 
   let txnRow = null;
   if (addToTransactions) {

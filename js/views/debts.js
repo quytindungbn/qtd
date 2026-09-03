@@ -266,15 +266,25 @@ function openPayModal(c, balance) {
 
 function openChargeForm({ creditorId, creditorName } = {}) {
   const locked = !!creditorId;
+  // Chỉ cho CHỌN LẠI chủ nợ đang còn nợ (tab "Đang nợ") — chọn 1 người trong danh sách này là ghi
+  // tiếp vào đúng sổ đang mở của họ. Muốn ghi nợ cho người đã "đã trả hết" (hoặc người mới hoàn
+  // toàn) thì gõ tên ở ô "Chủ nợ mới": trùng tên người đã trả hết sẽ tự mở 1 sổ nợ MỚI, không chồng
+  // vào sổ cũ.
+  const activeCreditors = locked ? [] : S.listCreditors({ status: 'active' });
   openModal({
     title: 'Ghi nợ mới',
     bodyHtml: `
       <div class="field">
         <label>Chủ nợ</label>
         ${locked
-          ? `<input id="charge-creditor" value="${creditorName.replace(/"/g, '&quot;')}" readonly/>`
-          : `<input id="charge-creditor" list="creditor-names" placeholder="VD: Tạp hóa A" required autocomplete="off"/>
-             <datalist id="creditor-names">${S.listCreditors().map((c) => `<option value="${c.name.replace(/"/g, '&quot;')}">`).join('')}</datalist>`}
+          ? `<input id="charge-creditor-name" value="${creditorName.replace(/"/g, '&quot;')}" readonly/>`
+          : `
+            <select id="charge-creditor-select">
+              <option value="">+ Chủ nợ mới (gõ tên)</option>
+              ${activeCreditors.map((c) => `<option value="${c.id}">${c.name.replace(/"/g, '&quot;')} — đang nợ ${formatVND(c.balance)}</option>`).join('')}
+            </select>
+            <input id="charge-creditor-name" placeholder="VD: Tạp hóa A" style="margin-top:8px" autocomplete="off"/>
+          `}
       </div>
       <div class="field"><label>Ngày mua nợ</label><input id="charge-date" type="date" value="${new Date().toISOString().slice(0, 10)}" required/></div>
       <div class="field"><label>Mua gì (không bắt buộc)</label><input id="charge-desc" placeholder="VD: gạo, mắm, dầu ăn"/></div>
@@ -286,17 +296,27 @@ function openChargeForm({ creditorId, creditorName } = {}) {
     onMount(sheet, closeFn) {
       attachMoneyInput(sheet.querySelector('#charge-amount'));
       bindAddToTxnToggle(sheet, 'charge');
+      const selectEl = sheet.querySelector('#charge-creditor-select');
+      const nameEl = sheet.querySelector('#charge-creditor-name');
+      if (selectEl) {
+        selectEl.addEventListener('change', () => {
+          const picked = !!selectEl.value;
+          nameEl.style.display = picked ? 'none' : '';
+          if (picked) nameEl.value = '';
+        });
+      }
       sheet.querySelector('[data-save]').addEventListener('click', async () => {
-        const creditorNameVal = locked ? creditorName : sheet.querySelector('#charge-creditor').value.trim();
+        const pickedCreditorId = locked ? creditorId : (selectEl ? selectEl.value : '');
+        const creditorNameVal = locked ? creditorName : nameEl.value.trim();
         const date = sheet.querySelector('#charge-date').value;
         const description = sheet.querySelector('#charge-desc').value.trim();
         const amount = unformatMoney(sheet.querySelector('#charge-amount').value);
         const addToTransactions = sheet.querySelector('#charge-add-txn').checked;
         const categoryId = sheet.querySelector('#charge-cat').value;
         const errEl = sheet.querySelector('#charge-error');
-        if (!creditorNameVal) { errEl.textContent = 'Cần nhập tên chủ nợ.'; errEl.style.display = 'block'; return; }
+        if (!pickedCreditorId && !creditorNameVal) { errEl.textContent = 'Cần chọn hoặc nhập tên chủ nợ.'; errEl.style.display = 'block'; return; }
         try {
-          await S.addDebtCharge({ creditorName: creditorNameVal, amount, date, description, categoryId, addToTransactions });
+          await S.addDebtCharge({ creditorId: pickedCreditorId || undefined, creditorName: pickedCreditorId ? undefined : creditorNameVal, amount, date, description, categoryId, addToTransactions });
           toast('Đã ghi nợ', 'success');
           closeFn();
           if (locked) openCreditorDetail(creditorId);
