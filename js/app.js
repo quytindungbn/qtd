@@ -107,9 +107,21 @@ window.addEventListener('DOMContentLoaded', async () => {
 // chạy KHÔNG có thanh địa chỉ (như 1 app riêng) khi trang có service worker
 // hợp lệ; thiếu nó, "Thêm vào màn hình chính" chỉ tạo 1 shortcut mở trong
 // Chrome bình thường — đúng hiện tượng thấy thanh địa chỉ như đang mở Chrome.
+//
+// updateViaCache:'none' + tự reload khi có bản mới kiểm soát trang: để mỗi
+// lần code cập nhật, tab ĐANG MỞ (không riêng gì lần mở mới) tự nhận bản mới
+// và tự tải lại — không cần ai bấm F12/xóa cache tay mỗi lần có bản mới nữa.
 if ('serviceWorker' in navigator) {
+  let reloadedForNewSw = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (reloadedForNewSw) return;
+    reloadedForNewSw = true;
+    location.reload();
+  });
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('service-worker.js').catch((e) => console.warn('Không đăng ký được service worker.', e));
+    navigator.serviceWorker.register('service-worker.js', { updateViaCache: 'none' })
+      .then((reg) => { reg.update().catch(() => {}); })
+      .catch((e) => console.warn('Không đăng ký được service worker.', e));
   });
 }
 
