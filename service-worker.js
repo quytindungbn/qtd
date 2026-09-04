@@ -10,5 +10,9 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim());
 });
 self.addEventListener('fetch', (event) => {
-  event.respondWith(fetch(event.request));
+  // cache: 'no-store' ép trình duyệt LUÔN xin bản mới nhất từ server, không tự
+  // ý dùng file đã lưu trước đó — tránh tình trạng "đã đẩy code mới nhưng mở
+  // app vẫn thấy bản cũ" ở tab thường (trong khi ẩn danh thì luôn đúng vì
+  // ẩn danh không có cache).
+  event.respondWith(fetch(event.request, { cache: 'no-store' }));
 });
