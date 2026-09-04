@@ -103,6 +103,16 @@ window.addEventListener('DOMContentLoaded', async () => {
   S.refresh();
 });
 
+// Đăng ký service worker — Chrome/Android chỉ cho "Thêm vào màn hình chính"
+// chạy KHÔNG có thanh địa chỉ (như 1 app riêng) khi trang có service worker
+// hợp lệ; thiếu nó, "Thêm vào màn hình chính" chỉ tạo 1 shortcut mở trong
+// Chrome bình thường — đúng hiện tượng thấy thanh địa chỉ như đang mở Chrome.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('service-worker.js').catch((e) => console.warn('Không đăng ký được service worker.', e));
+  });
+}
+
 // Mọi thay đổi dữ liệu (xóa/tạo/sửa...) đều gọi notify() và kích hoạt render
 // lại ở đây — nhưng đây KHÔNG phải là chuyển trang, nên không cuộn lên đầu,
 // để thao tác xong người dùng vẫn đang đứng đúng chỗ vừa thao tác.
